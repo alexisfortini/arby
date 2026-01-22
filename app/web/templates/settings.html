@@ -1,0 +1,667 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+
+
+<script src="//unpkg.com/alpinejs" defer></script>
+
+<div class="max-w-xl mx-auto" x-data="{ tab: '{{ active_tab }}' }">
+    <div class="mb-6 flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-slate-800">Settings</h1>
+        <div class="flex items-center gap-4">
+            <a href="/help" class="text-blue-600 hover:text-blue-700 text-sm font-bold flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                    </path>
+                </svg>
+                Help Guide
+            </a>
+            <a href="/" class="text-slate-500 hover:text-slate-800 text-sm font-bold">Done</a>
+        </div>
+    </div>
+
+    <!-- Tabs Header -->
+    <div class="flex gap-1 bg-slate-100 p-1 rounded-xl mb-6">
+        <button @click="tab = 'models'"
+            :class="tab === 'models' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            class="flex-1 py-2 text-sm font-bold rounded-lg transition-all">
+            Chefs & Models
+        </button>
+        <button @click="tab = 'data'"
+            :class="tab === 'data' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            class="flex-1 py-2 text-sm font-bold rounded-lg transition-all">
+            Data & Privacy
+        </button>
+    </div>
+
+    <!-- Models Tab -->
+    <div x-show="tab === 'models'" class="space-y-6">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-slate-800">AI Chef Keys 🔑</h2>
+                <span
+                    class="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">ACCESS
+                    CONTROL</span>
+            </div>
+            <p class="text-slate-500 text-sm mb-6">
+                Enter your **API Keys** or the **Name of an Environment Variable** containing the key. Arby will
+                automatically resolve them.
+            </p>
+
+            <form method="POST">
+                <!-- Google Gemini -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-semibold text-slate-700">Google Gemini API Key</label>
+                        <div class="flex items-center gap-2">
+                            {% if display_keys.gemini.status %}
+                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
+                                display_keys.gemini.status }}</span>
+                            {% endif %}
+                            {% if display_keys.gemini.active %}
+                            <span
+                                class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
+                            {% else %}
+                            <span
+                                class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">MISSING</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <input type="{% if display_keys.gemini.val == '***' %}password{% else %}text{% endif %}"
+                        name="gemini_key" placeholder="e.g. GEMINI_API_KEY or AIzam..."
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                        value="{{ display_keys.gemini.val }}">
+                    <p class="text-xs text-slate-400 mt-1">Recommended. Handles PDF cookbooks and advanced logic.
+                    </p>
+                </div>
+
+                <!-- OpenAI -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-semibold text-slate-700">OpenAI API Key</label>
+                        <div class="flex items-center gap-2">
+                            {% if display_keys.openai.status %}
+                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
+                                display_keys.openai.status }}</span>
+                            {% endif %}
+                            {% if display_keys.openai.active %}
+                            <span
+                                class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
+                            {% else %}
+                            <span
+                                class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">LOCKED</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <input type="{% if display_keys.openai.val == '***' %}password{% else %}text{% endif %}"
+                        name="openai_key" placeholder="e.g. OPENAI_API_KEY or sk-..."
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono text-sm"
+                        value="{{ display_keys.openai.val }}">
+                    <p class="text-xs text-slate-400 mt-1">Unlocks GPT-4o and o1-mini.</p>
+                </div>
+
+                <!-- Anthropic -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-semibold text-slate-700">Anthropic API Key</label>
+                        <div class="flex items-center gap-2">
+                            {% if display_keys.anthropic.status %}
+                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
+                                display_keys.anthropic.status }}</span>
+                            {% endif %}
+                            {% if display_keys.anthropic.active %}
+                            <span
+                                class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
+                            {% else %}
+                            <span
+                                class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">LOCKED</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <input type="{% if display_keys.anthropic.val == '***' %}password{% else %}text{% endif %}"
+                        name="anthropic_key" placeholder="e.g. ANTHROPIC_API_KEY or sk-ant-..."
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
+                        value="{{ display_keys.anthropic.val }}">
+                    <p class="text-xs text-slate-400 mt-1">Unlocks Claude 3.5 Sonnet & Haiku.</p>
+                </div>
+
+                <!-- xAI -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-semibold text-slate-700">xAI (Grok) API Key</label>
+                        <div class="flex items-center gap-2">
+                            {% if display_keys.xai.status %}
+                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
+                                display_keys.xai.status }}</span>
+                            {% endif %}
+                            {% if display_keys.xai.active %}
+                            <span
+                                class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
+                            {% else %}
+                            <span
+                                class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">LOCKED</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <input type="{% if display_keys.xai.val == '***' %}password{% else %}text{% endif %}" name="xai_key"
+                        placeholder="e.g. XAI_API_KEY or xai-..."
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-500 font-mono text-sm"
+                        value="{{ display_keys.xai.val }}">
+                    <p class="text-xs text-slate-400 mt-1">Unlocks Grok Beta.</p>
+                </div>
+
+                <div class="pt-4 border-t border-slate-100 flex justify-end">
+                    <button type="submit"
+                        class="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:opacity-90 transition shadow-lg">
+                        Save Keys & Unlock Providers
+                    </button>
+                </div>
+            </form>
+        </div>
+
+
+
+        <!-- Select Head Chef (Creative) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-slate-800">Default Head Chef 👨‍🍳</h2>
+                <span
+                    class="text-[10px] bg-purple-50 text-purple-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Primary
+                    Role</span>
+            </div>
+            <p class="text-slate-500 text-sm mb-4">
+                The Head Chef is your creative partner for generating recipes and meal plans.
+            </p>
+
+            <form action="/settings/core_model" method="POST" class="flex gap-4">
+                <select name="core_model_id"
+                    class="flex-grow bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {% for model in models %}
+                    {% if not model.locked %}
+                    <option value="{{ model.id }}" {% if model.is_core %}selected{% endif %}>
+                        {{ model.name }} ({{ model.provider }})
+                    </option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+                <button type="submit"
+                    class="bg-blue-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+                    Save
+                </button>
+            </form>
+        </div>
+
+        <!-- Select Sous Chef (Utility) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-slate-800">Default Sous Chef 🔪</h2>
+                <span
+                    class="text-[10px] bg-orange-50 text-orange-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Utility
+                    Role</span>
+            </div>
+            <p class="text-slate-500 text-sm mb-4">
+                The Sous Chef handles everyday tasks: Pantry management and Meal Reviews.
+            </p>
+            <form action="/settings/sous_chef_model" method="POST" class="flex gap-4">
+                <select name="sous_chef_model_id"
+                    class="flex-grow bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {% for model in models %}
+                    {% if not model.locked %}
+                    <option value="{{ model.id }}" {% if model.is_sous_chef %}selected{% endif %}>
+                        {{ model.name }} ({{ model.provider }})
+                    </option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+                <button type="submit"
+                    class="bg-blue-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+                    Save
+                </button>
+            </form>
+        </div>
+
+        <!-- Select Librarian (PDF Ingestion) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-slate-800">Default Librarian 📚</h2>
+                <span
+                    class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Ingestion
+                    Role</span>
+            </div>
+            <p class="text-slate-500 text-sm mb-4">
+                The Librarian digests your PDF cookbooks. <strong>Google Gemini is highly recommended</strong> for its
+                superior PDF native intelligence.
+            </p>
+
+            <form action="/settings/librarian_model" method="POST" class="flex gap-4">
+                <select name="librarian_model_id"
+                    class="flex-grow bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {% for model in models %}
+                    {% if not model.locked %}
+                    <option value="{{ model.id }}" {% if model.is_librarian %}selected{% endif %}>
+                        {{ model.name }} ({{ model.provider }})
+                    </option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+                <button type="submit"
+                    class="bg-blue-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+                    Save
+                </button>
+            </form>
+        </div>
+
+        <!-- Model Management -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-slate-800">Manage Chefs 🛠️</h2>
+                <span
+                    class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Model
+                    Library</span>
+            </div>
+            <p class="text-slate-500 text-sm mb-6">
+                Customize which models appear in your selector. You can hide defaults or add new ones
+                manually.
+            </p>
+
+            <!-- List -->
+            <div class="space-y-4 mb-8">
+                {% for model in models %}
+                <div class="bg-slate-50 rounded-xl border border-slate-100 p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-3">
+                            <div class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                {{ model.name }}
+                                {% if model.is_core %}
+                                <span
+                                    class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold">DEFAULT</span>
+                                {% endif %}
+                                {% if model.is_sous_chef %}
+                                <span
+                                    class="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-bold">SOUS</span>
+                                {% endif %}
+                            </div>
+                            <div
+                                class="text-xs text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-100 uppercase">
+                                {{ model.provider }}</div>
+
+                            <!-- Status Badge -->
+                            {% if model.health.status == 'ok' %}
+                            <span
+                                class="text-[10px] text-green-600 bg-green-100 px-2 py-0.5 rounded font-bold">ONLINE</span>
+
+                            {% elif model.health.status == 'rate_limit' %}
+                            <span class="text-[10px] text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded font-bold">RATE
+                                LIMIT</span>
+
+                            {% elif model.health.status == 'auth_error' %}
+                            <span class="text-[10px] text-red-600 bg-red-100 px-2 py-0.5 rounded font-bold">AUTH
+                                ERROR</span>
+
+                            {% elif model.health.status == 'error' %}
+                            <span class="text-[10px] text-red-600 bg-red-100 px-2 py-0.5 rounded font-bold">ERROR</span>
+
+                            {% else %}
+                            <span
+                                class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded font-bold">UNCHECKED</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button onclick="testModel('{{ model.id }}')"
+                                class="text-xs bg-white border border-slate-200 hover:border-blue-400 px-3 py-1 rounded-lg transition">
+                                Test Connection
+                            </button>
+
+                            {% if model.is_custom %}
+                            <form action="/settings/models/delete" method="POST"
+                                onsubmit="return confirm('Remove this model?');" style="display:inline;">
+                                <input type="hidden" name="model_id" value="{{ model.id }}">
+                                <button type="submit" class="text-slate-400 hover:text-red-500 p-1 transition"
+                                    title="Hide/Remove">
+                                    ✕
+                                </button>
+                            </form>
+                            {% else %}
+                            <form action="/settings/models/delete" method="POST"
+                                onsubmit="return confirm('Hide this model?');" style="display:inline;">
+                                <input type="hidden" name="model_id" value="{{ model.id }}">
+                                <button type="submit" class="text-slate-300 hover:text-red-400 p-1 transition"
+                                    title="Hide">
+                                    ✕
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Cost Configuration -->
+                    <form action="/settings/models/cost" method="POST"
+                        class="flex gap-4 items-center text-xs text-slate-500 bg-white p-2 rounded-lg border border-slate-100">
+                        <input type="hidden" name="model_id" value="{{ model.id }}">
+                        <div class="flex items-center gap-1">
+                            <span>Input $/1M:</span>
+                            <input type="number" step="0.001" name="cost_in" value="{{ model.cost_in }}"
+                                class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1">
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <span>Output $/1M:</span>
+                            <input type="number" step="0.001" name="cost_out" value="{{ model.cost_out }}"
+                                class="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1">
+                        </div>
+                        <button type="submit" class="text-blue-500 hover:underline ml-auto">Update Rates</button>
+                    </form>
+                </div>
+                {% endfor %}
+
+                <div class="mt-6 flex justify-between items-center border-t border-slate-100 pt-4">
+                    <form action="/settings/models/restore" method="POST">
+                        <button type="submit"
+                            class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 font-black px-4 py-2 rounded-xl transition uppercase tracking-widest">
+                            Restore Default List
+                        </button>
+                    </form>
+                    <button onclick="testAllModels()"
+                        class="text-[10px] bg-blue-600 hover:bg-blue-700 text-white font-black px-4 py-2 rounded-xl transition uppercase tracking-widest shadow-lg shadow-blue-100">
+                        Test All Connections 📡
+                    </button>
+                </div>
+            </div>
+
+            <script>
+                const activeTests = {}; // modelId -> AbortController
+
+                function testAllModels() {
+                    const buttons = document.querySelectorAll('button[onclick^="testModel"]');
+                    buttons.forEach((btn, index) => {
+                        // Stagger execution slightly to avoid overwhelming server/browser
+                        setTimeout(() => {
+                            btn.click();
+                        }, index * 200);
+                    });
+                }
+
+                function testModel(modelId) {
+                    const btn = event.target;
+
+                    // If already testing, this is a Cancel action
+                    if (activeTests[modelId]) {
+                        activeTests[modelId].abort();
+                        delete activeTests[modelId];
+                        btn.innerText = "Test Connection";
+                        btn.classList.remove('bg-red-50', 'text-red-600', 'border-red-200');
+                        btn.disabled = false;
+                        return;
+                    }
+
+                    // Start Test
+                    const originalText = btn.innerText;
+                    btn.innerText = "Cancel";
+                    btn.classList.add('bg-red-50', 'text-red-600', 'border-red-200');
+
+                    const controller = new AbortController();
+                    activeTests[modelId] = controller;
+
+                    fetch('/api/test_model', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ model_id: modelId }),
+                        signal: controller.signal
+                    })
+                        .then(r => r.json())
+                        .then(data => {
+                            delete activeTests[modelId];
+                            if (data.status === 'ok') {
+                                btn.innerText = "Success! ✅";
+                                btn.classList.remove('bg-red-50', 'text-red-600', 'border-red-200');
+                                btn.classList.add('text-green-600', 'border-green-400');
+                                setTimeout(() => location.reload(), 1000);
+                            } else if (data.status === 'rate_limit') {
+                                btn.innerText = "Rate Limit ⚠️";
+                                btn.classList.remove('bg-red-50', 'text-red-600', 'border-red-200');
+                                btn.classList.add('text-yellow-600', 'border-yellow-400', 'bg-yellow-50');
+                                // alert("Rate Limit Reached: " + data.msg); // Optional: don't alert for bulk test
+                                setTimeout(() => location.reload(), 1000);
+                            } else {
+                                btn.innerText = "Failed ❌";
+                                btn.classList.remove('bg-red-50', 'text-red-600', 'border-red-200');
+                                btn.classList.add('text-red-600', 'border-red-400');
+                                // alert("Error: " + data.msg);
+                                setTimeout(() => location.reload(), 1000);
+                            }
+                        })
+                        .catch(err => {
+                            if (err.name === 'AbortError') {
+                                console.log('Fetch aborted');
+                                // Reset UI on cancel if needed, though click handler did mostly.
+                                // But here we ensure clean state.
+                                btn.innerText = "Test Connection";
+                                btn.classList.remove('bg-red-50', 'text-red-600', 'border-red-200');
+                                delete activeTests[modelId];
+                            } else {
+                                console.error("Fetch error:", err);
+                                btn.innerText = "Error ⚠️";
+                                delete activeTests[modelId];
+                            }
+                        });
+                }
+            </script>
+
+            <!-- Add New -->
+            <h3 class="text-md font-bold text-slate-700 mb-3">Add Custom Model</h3>
+            <form action="/settings/models/add" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div class="md:col-span-1">
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Provider</label>
+                    <select name="provider" id="providerSelect" onchange="toggleCustomFields()"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="google">Google</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="xai">xAI</option>
+                        <option value="custom">Custom (OpenAI API)</option>
+                    </select>
+                </div>
+
+                <div class="md:col-span-1">
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Model ID</label>
+                    <input type="text" name="model_id" placeholder="e.g. gpt-5" required
+                        class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="md:col-span-1">
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Display Name</label>
+                    <input type="text" name="name" placeholder="e.g. My Custom Model" required
+                        class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="md:col-span-1 flex items-end">
+                    <button type="submit"
+                        class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg hover:bg-blue-700 transition">
+                        + Add
+                    </button>
+                </div>
+
+                <!-- Custom Fields (Hidden by default) -->
+                <div id="customFields"
+                    class="md:col-span-4 grid grid-cols-1 md:grid-cols-2 gap-3 hidden bg-slate-50 p-3 rounded-xl border border-dashed border-slate-200 mt-2">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">Base URL (Optional)</label>
+                        <input type="text" name="base_url" placeholder="https://api.groq.com/openai/v1"
+                            class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">API Key (Optional)</label>
+                        <input type="password" name="api_key" placeholder="sk-..."
+                            class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="text-[10px] text-slate-400 mt-1">Leave blank to use default OpenAI Key</p>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Data Tab -->
+    <div x-show="tab === 'data'" class="space-y-6">
+        <!-- Input Data Controls -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-slate-800">Chef's Brain 🧠</h2>
+                <span
+                    class="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Context
+                    Controls</span>
+            </div>
+            <p class="text-slate-500 text-sm mb-6">
+                Control exactly what information is shared with the Head Chef when generating your weekly meal
+                plans.
+            </p>
+
+            <form action="/settings/preferences" method="POST">
+                <div class="flex flex-col gap-3 mb-8">
+                    <!-- Pantry Inventory -->
+                    <label
+                        class="flex items-start gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100 cursor-pointer hover:bg-slate-100 transition group">
+                        <input type="checkbox" name="use_inventory"
+                            class="mt-1 rounded border-slate-300 text-blue-500 focus:ring-blue-500" {% if
+                            prefs.data_context.use_inventory %}checked{% endif %}>
+                        <div>
+                            <span
+                                class="block text-sm font-bold text-slate-700 group-hover:text-blue-600 transition">Pantry
+                                Inventory</span>
+                            <span class="block text-[11px] text-slate-400 leading-tight mt-0.5">Include currently
+                                stocked items to minimize shopping.</span>
+                        </div>
+                    </label>
+
+                    <!-- Cravings & Ideas -->
+                    <div class="flex items-start gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100 group">
+                        <input type="checkbox" name="use_ideas"
+                            class="mt-1 rounded border-slate-300 text-blue-500 focus:ring-blue-500" {% if
+                            prefs.data_context.use_ideas %}checked{% endif %}>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-center">
+                                <span class="block text-sm font-bold text-slate-700">Cravings
+                                    & Ideas</span>
+                                <button type="button" onclick="openIdeasModal()"
+                                    class="text-[10px] font-black uppercase text-blue-600 hover:text-blue-800 tracking-widest border border-blue-200 px-2 py-0.5 rounded-lg bg-blue-50/50 hover:bg-blue-100 transition-colors">Edit
+                                    Ideas</button>
+                            </div>
+                            <span class="block text-[11px] text-slate-400 leading-tight mt-0.5">Include your
+                                temporary "Mood" ideas from the home screen.</span>
+                        </div>
+                    </div>
+
+                    <!-- Meal History (Spanning both columns) -->
+                    <label
+                        class="flex items-start gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100 cursor-pointer hover:bg-slate-100 transition group">
+                        <input type="checkbox" name="use_history"
+                            class="mt-1 rounded border-slate-300 text-blue-500 focus:ring-blue-500" {% if
+                            prefs.data_context.use_history %}checked{% endif %}>
+                        <div class="flex-1">
+                            <span
+                                class="block text-sm font-bold text-slate-700 group-hover:text-blue-600 transition">Meal
+                                History</span>
+                            <span class="block text-[11px] text-slate-400 leading-tight mt-0.5">Share recent plans
+                                to avoid repetition.</span>
+
+                            <div class="mt-2 flex items-center gap-2" @click.stop>
+                                <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Plans To
+                                    Include:</span>
+                                <input type="number" name="history_depth" value="{{ prefs.history_depth or 50 }}"
+                                    min="1" max="100"
+                                    class="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 font-bold">
+                            </div>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="mb-8 p-6 bg-slate-900 rounded-3xl text-white">
+                    <div class="flex items-center gap-2 mb-3">
+                        <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <h3 class="font-bold text-sm tracking-wide uppercase">Long-term Preferences</h3>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-4 leading-relaxed">Dietary rules, family sizes, or general
+                        cooking styles that Arby should ALWAYS follow.</p>
+                    <textarea name="long_term_preferences" rows="5"
+                        class="w-full bg-slate-800/50 border border-slate-700/50 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-200 placeholder-slate-500 font-medium"
+                        placeholder="e.g. 'We are a family of 4', 'Always prioritize high-protein meals', 'Minimize carbs during weekdays'...">{{ prefs.long_term_preferences }}</textarea>
+                </div>
+
+                <div class="flex justify-end">
+                    <button type="submit"
+                        class="bg-blue-600 text-white font-bold px-8 py-3 rounded-2xl hover:bg-blue-700 transition shadow-lg shadow-blue-200">
+                        Update Brain Context
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- System Locations (Moved Here) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mt-6 mb-8">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-slate-800">System Data Nodes 📂</h2>
+                <span
+                    class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Developer
+                    Paths</span>
+            </div>
+            <p class="text-slate-500 text-sm mb-6">
+                Direct access to the underlying storage locations for your Arby instance.
+            </p>
+            <div class="space-y-4">
+                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-400">Cookbook PDF
+                            Library</h3>
+                    </div>
+                    <code class="block w-full text-xs text-slate-600 font-mono break-all">{{ pdf_library_path }}</code>
+                </div>
+
+                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-400">Application
+                            State</h3>
+                    </div>
+                    <code class="block w-full text-xs text-slate-600 font-mono break-all">{{ state_folder_path }}</code>
+                </div>
+
+                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-400">Environment Config
+                            (.env)</h3>
+                    </div>
+                    <code class="block w-full text-xs text-slate-600 font-mono break-all">{{ env_file_path }}</code>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</div>
+
+{% include "modal_ideas.html" %}
+
+<script>
+    function openIdeasModal() {
+        document.getElementById('ideasModal').classList.remove('hidden');
+    }
+
+    function closeIdeasModal() {
+        document.getElementById('ideasModal').classList.add('hidden');
+    }
+
+    function toggleCustomFields() {
+        const select = document.getElementById('providerSelect');
+        const fields = document.getElementById('customFields');
+        if (select.value === 'custom') {
+            fields.classList.remove('hidden');
+        } else {
+            fields.classList.add('hidden');
+        }
+    }
+</script>
+
+{% endblock %}

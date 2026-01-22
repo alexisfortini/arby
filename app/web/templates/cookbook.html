@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="flex flex-wrap justify-between items-center mb-6 gap-4">
+    <h1 class="text-2xl font-bold text-slate-800">Cookbook Library</h1>
+    <div class="flex flex-wrap gap-2">
+        <button onclick="startSync()" id="syncBtn"
+            class="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-100 transition whitespace-nowrap flex items-center gap-2">
+            <span>🔄</span> <span>Sync PDFs</span>
+        </button>
+
+        <a href="/cookbook/add"
+            class="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition whitespace-nowrap">
+            + Add Recipe
+        </a>
+    </div>
+</div>
+
+<div class="mb-6 flex justify-end">
+    <a href="/cookbook/ignored" class="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1">
+        <span>🗑️</span> Manage Ignored Files
+    </a>
+</div>
+
+<!-- Progress Bar (Hidden by default) -->
+<div id="syncProgressContainer"
+    class="hidden mb-8 bg-white p-4 rounded-xl border border-blue-100 shadow-sm animate-pulse">
+    <div class="flex justify-between items-center mb-2">
+        <span id="syncStatusText" class="text-sm font-bold text-blue-600">Starting Sync...</span>
+        <span id="syncPercent" class="text-xs font-mono text-blue-400">0%</span>
+    </div>
+    <div class="w-full bg-slate-100 rounded-full h-2.5">
+        <div id="syncBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+    </div>
+</div>
+
+<!-- Search & Filter -->
+<form method="GET" class="mb-6">
+    <div class="flex flex-col md:flex-row gap-4">
+        <input type="text" name="q" placeholder="Search recipes or ingredients..."
+            value="{{ request.args.get('q', '') }}"
+            class="flex-grow bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500">
+
+        <select name="category" onchange="this.form.submit()"
+            class="bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 min-w-[150px]">
+            <option value="">All Categories</option>
+            {% for cat in categories %}
+            <option value="{{ cat }}" {% if request.args.get('category')==cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="protein" onchange="this.form.submit()"
+            class="bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 min-w-[150px]">
+            <option value="">All Proteins</option>
+            {% for prot in proteins %}
+            <option value="{{ prot }}" {% if request.args.get('protein')==prot %}selected{% endif %}>{{ prot }}</option>
+            {% endfor %}
+        </select>
+
+        {% if request.args.get('q') or request.args.get('category') or request.args.get('protein') %}
+        <a href="/cookbook"
+            class="flex items-center justify-center bg-slate-100 text-slate-500 hover:text-red-500 px-4 rounded-xl transition">
+            ✕
+        </a>
+        {% endif %}
+    </div>
+</form>
+
+<script>
+    let pollInterval;
+
+    function startSync() {
+        const btn = document.getElementById('syncBtn');
+        const container = document.getElementById('syncProgressContainer');
+
+        // Change to Stop Button
+        btn.disabled = false;
+        btn.innerHTML = "<span>🛑</span> <span>Stop Sync</span>";
+        btn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-blue-50', 'text-blue-600');
+        btn.classList.add('bg-red-50', 'text-red-600');
+        btn.onclick = cancelSync;
+
+        // Trigger Sync
+        fetch('/cookbook/sync', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                // Show progress bar
+                container.classList.remove('hidden');
+                // Start Polling
+                pollInterval = setInterval(checkStatus, 1000);
+            })
+            .catch(err => {
+                alert("Error starting sync: " + err);
+                resetUI();
+            });
+    }
+
+    function checkStatus() {
+        fetch('/cookbook/sync/status')
+            .then(r => r.json())
+            .then(status => {
+                updateUI(status);
+
+                if (!status.is_syncing && status.percent >= 100) {
+                    clearInterval(pollInterval);
+                    setTimeout(() => location.reload(), 1000); // Reload to show new items
+                } else if (!status.is_syncing && status.message === 'Sync Stopped.') {
+                    clearInterval(pollInterval);
+                    setTimeout(() => resetUI(), 1000);
+                } else if (!status.is_syncing && status.percent === 0 && status.total === 0 && status.message !== 'Idle') {
+                    // Maybe errored or finished with 0 items?
+                    clearInterval(pollInterval);
+                    setTimeout(() => resetUI(), 2000);
+                }
+            });
+    }
+
+    function cancelSync() {
+        fetch('/cookbook/sync/cancel', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                const btn = document.getElementById('syncBtn');
+                btn.innerHTML = "<span>🛑</span> <span>Stopping...</span>";
+            });
+    }
+
+    function updateUI(status) {
+        document.getElementById('syncStatusText').innerText = status.message || "Processing...";
+        document.getElementById('syncPercent').innerText = status.percent + "%";
+        document.getElementById('syncBar').style.width = status.percent + "%";
+    }
+
+    function resetUI() {
+        const btn = document.getElementById('syncBtn');
+        const container = document.getElementById('syncProgressContainer');
+
+        btn.disabled = false;
+        btn.innerHTML = "<span>🔄</span> <span>Sync PDFs</span>";
+        btn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-red-50', 'text-red-600');
+        btn.classList.add('bg-blue-50', 'text-blue-600');
+        btn.onclick = startSync;
+
+        container.classList.add('hidden');
+    }
+
+    // --- BATCH OPERATIONS ---
+
+    function updateSelection() {
+        const checkboxes = document.querySelectorAll('.recipe-checkbox:checked');
+        const count = checkboxes.length;
+        const bar = document.getElementById('batchBar');
+
+        document.getElementById('selectedCount').innerText = count;
+
+        if (count > 0) {
+            bar.classList.remove('hidden');
+            bar.classList.remove('translate-y-20');
+        } else {
+            bar.classList.add('hidden'); // Or translate-y
+        }
+    }
+
+    function clearSelection() {
+        document.querySelectorAll('.recipe-checkbox').forEach(cb => cb.checked = false);
+        updateSelection();
+    }
+
+    function getSelectedIds() {
+        return Array.from(document.querySelectorAll('.recipe-checkbox:checked')).map(cb => cb.value);
+    }
+
+    function batchDelete() {
+        const ids = getSelectedIds();
+        if (!confirm(`Are you sure you want to delete ${ids.length} recipes?`)) return;
+
+        fetch('/cookbook/batch/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: ids })
+        }).then(() => location.reload());
+    }
+
+    function openBatchEdit() {
+        const ids = getSelectedIds();
+        document.getElementById('batchEditCount').innerText = ids.length;
+        document.getElementById('batchEditModal').showModal();
+    }
+
+    function submitBatchEdit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const updates = {};
+        if (formData.get('category')) updates.category = formData.get('category');
+        if (formData.get('protein')) updates.protein = formData.get('protein');
+
+        const ids = getSelectedIds();
+
+        fetch('/cookbook/batch/edit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: ids, updates: updates })
+        }).then(() => location.reload());
+    }
+</script>
+
+<!-- Batch Actions Bar (Floating) -->
+<div id="batchBar"
+    class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-xl z-50 flex items-center gap-6 hidden transition-all duration-300">
+    <div class="flex items-center gap-2">
+        <span class="font-bold text-lg" id="selectedCount">0</span>
+        <span class="text-slate-400 text-sm">Selected</span>
+    </div>
+    <div class="h-6 w-px bg-slate-700"></div>
+    <div class="flex items-center gap-2">
+        <button onclick="openBatchEdit()"
+            class="hover:text-blue-400 font-medium transition-colors text-sm flex items-center gap-1">
+            <span>✏️</span> Edit
+        </button>
+        <button onclick="batchDelete()"
+            class="hover:text-red-400 font-medium transition-colors text-sm flex items-center gap-1 ml-2">
+            <span>🗑️</span> Delete
+        </button>
+        <button onclick="clearSelection()" class="hover:text-slate-300 font-medium transition-colors text-sm ml-4">
+            ✕
+        </button>
+    </div>
+</div>
+
+<!-- Batch Edit Modal -->
+<dialog id="batchEditModal" class="rounded-2xl p-0 w-full max-w-md backdrop:bg-slate-900/50">
+    <div class="p-6">
+        <h3 class="text-lg font-bold text-slate-800 mb-4">Edit Recipes</h3>
+        <p class="text-sm text-slate-500 mb-6">Updating <span id="batchEditCount" class="font-bold">0</span> recipes.
+        </p>
+
+        <form id="batchEditForm" onsubmit="submitBatchEdit(event)">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">New
+                        Category</label>
+                    <select name="category"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm">
+                        <option value="">(No Change)</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}">{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">New
+                        Protein</label>
+                    <input type="text" name="protein" list="batch-protein-list" placeholder="(No Change)"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm">
+                    <datalist id="batch-protein-list">
+                        {% for prot in proteins %}
+                        <option value="{{ prot }}">
+                            {% endfor %}
+                    </datalist>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-8">
+                <button type="button" onclick="document.getElementById('batchEditModal').close()"
+                    class="px-4 py-2 text-slate-500 font-medium text-sm hover:text-slate-700">Cancel</button>
+                <button type="submit"
+                    class="px-5 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-sm shadow-blue-200">
+                    Update Recipes
+                </button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for recipe in recipes %}
+    <div
+        class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-md transition group relative">
+        <label class="absolute top-4 left-4 z-10 cursor-pointer">
+            <input type="checkbox"
+                class="recipe-checkbox w-5 h-5 rounded border-slate-300 text-green-600 focus:ring-green-500 shadow-sm transition-opacity opacity-0 group-hover:opacity-100 checked:opacity-100"
+                value="{{ recipe.id }}" onchange="updateSelection()">
+        </label>
+        <div class="p-6 pl-12"> <!-- Added padding-left for checkbox space -->
+            <div class="flex justify-between items-start mb-2 gap-2">
+                <div class="flex flex-wrap gap-1">
+                    <span
+                        class="inline-block bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">
+                        {{ recipe.category }}
+                    </span>
+                    <span
+                        class="inline-block bg-blue-50 text-blue-500 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">
+                        {{ recipe.protein }}
+                    </span>
+                </div>
+                {% if recipe.source == 'pdf' %}
+                <span
+                    class="inline-block bg-red-50 text-red-500 text-[10px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap">
+                    PDF
+                </span>
+                {% endif %}
+            </div>
+
+            <h3 class="text-lg font-bold text-slate-800 mb-1 leading-snug">{{ recipe.name }}</h3>
+
+            <div class="flex justify-between items-center mt-1">
+                <a href="/cookbook/view/{{ recipe.id }}"
+                    class="text-green-600 font-medium hover:text-green-700 text-sm">
+                    View Recipe →
+                </a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-span-full text-center py-12 text-slate-400">
+        <div class="text-4xl mb-4">📖</div>
+        <p>No recipes found. Try syncing or adding one!</p>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,132 @@
+<!-- Calendar Grid Partial -->
+<!-- Flexible Grid for Custom Range -->
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+    {% for day in calendar_days %}
+    {% set day_config = config.schedule[day.day_name] %}
+
+    <div class="bg-white rounded-xl border border-slate-200 p-3 shadow-sm relative group hover:shadow-md transition-all
+            {% if day.is_today %} ring-2 ring-blue-100 {% endif %}">
+
+        <div class="flex justify-between items-center mb-3">
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-bold uppercase text-slate-500">{{ day.day_name[:3] }}</span>
+                <span class="text-sm font-bold text-slate-800">{{ day.date_num }}</span>
+            </div>
+            {% if day.is_today %}
+            <span class="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">TODAY</span>
+            {% endif %}
+        </div>
+
+        <!-- Meal Slots (Interactive) -->
+        <div class="space-y-1.5">
+            <!-- BREAKFAST -->
+            <div onclick="toggleWidgetSlot('{{ day.day_name }}', 'breakfast', '{{ day.date_iso }}')"
+                class="cursor-pointer group/slot relative h-[52px]">
+
+                {% if day.content.breakfast %}
+                {% if day_config.breakfast %}
+                <!-- ON + FILLED = OVERWRITE -->
+                <div
+                    class="h-full w-full p-1.5 rounded-lg bg-green-500 text-white shadow-sm border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                    <span
+                        class="font-black uppercase block text-green-100 text-[7px] leading-tight mb-0.5">Overwrite</span>
+                    <span class="leading-tight truncate block text-[10px] italic">{{ day.content.breakfast }}</span>
+                </div>
+                {% else %}
+                <!-- OFF + FILLED = SAVED MEAL (Normal Appearance) -->
+                <div
+                    class="h-full w-full p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                    <span class="font-bold block text-slate-400 text-[7px] leading-tight mb-0.5 uppercase">🍳
+                        Breakfast</span>
+                    <span class="leading-tight truncate block text-[10px] font-medium">{{ day.content.breakfast
+                        }}</span>
+                </div>
+                {% endif %}
+                {% else %}
+                {% if day_config.breakfast %}
+                <!-- ON + EMPTY = PLAN NEEDED -->
+                <div
+                    class="h-full w-full rounded-lg bg-green-500 text-white shadow-sm flex items-center justify-center transition-all active:scale-95">
+                    <span class="text-[9px] font-black tracking-wider">BREAKFAST</span>
+                </div>
+                {% else %}
+                <!-- OFF + EMPTY = SKIP -->
+                <div
+                    class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-50 transition-colors">
+                    <span class="text-[8px] font-bold uppercase">SKIP</span>
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+
+            <!-- LUNCH -->
+            <div onclick="toggleWidgetSlot('{{ day.day_name }}', 'lunch', '{{ day.date_iso }}')"
+                class="cursor-pointer group/slot relative h-[52px]">
+                {% if day.content.lunch %}
+                {% if day_config.lunch %}
+                <div
+                    class="h-full w-full p-1.5 rounded-lg bg-green-500 text-white shadow-sm border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                    <span
+                        class="font-black uppercase block text-green-100 text-[7px] leading-tight mb-0.5">Overwrite</span>
+                    <span class="leading-tight truncate block text-[10px] italic">{{ day.content.lunch }}</span>
+                </div>
+                {% else %}
+                <div
+                    class="h-full w-full p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                    <span class="font-bold block text-slate-400 text-[7px] leading-tight mb-0.5 uppercase">🥗
+                        Lunch</span>
+                    <span class="leading-tight truncate block text-[10px] font-medium">{{ day.content.lunch }}</span>
+                </div>
+                {% endif %}
+                {% else %}
+                {% if day_config.lunch %}
+                <div
+                    class="h-full w-full rounded-lg bg-green-500 text-white shadow-sm flex items-center justify-center transition-all active:scale-95">
+                    <span class="text-[9px] font-black tracking-wider">LUNCH</span>
+                </div>
+                {% else %}
+                <div
+                    class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-50 transition-colors">
+                    <span class="text-[8px] font-bold uppercase">SKIP</span>
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+
+            <!-- DINNER -->
+            <div onclick="toggleWidgetSlot('{{ day.day_name }}', 'dinner', '{{ day.date_iso }}')"
+                class="cursor-pointer group/slot relative h-[52px]">
+                {% if day.content.dinner %}
+                {% if day_config.dinner %}
+                <div
+                    class="h-full w-full p-1.5 rounded-lg bg-green-500 text-white shadow-sm border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                    <span
+                        class="font-black uppercase block text-green-100 text-[7px] leading-tight mb-0.5">Overwrite</span>
+                    <span class="leading-tight truncate block text-[10px] italic">{{ day.content.dinner }}</span>
+                </div>
+                {% else %}
+                <div
+                    class="h-full w-full p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                    <span class="font-bold block text-slate-400 text-[7px] leading-tight mb-0.5 uppercase">🍽️
+                        Dinner</span>
+                    <span class="leading-tight truncate block text-[10px] font-medium">{{ day.content.dinner }}</span>
+                </div>
+                {% endif %}
+                {% else %}
+                {% if day_config.dinner %}
+                <div
+                    class="h-full w-full rounded-lg bg-green-500 text-white shadow-sm flex items-center justify-center transition-all active:scale-95">
+                    <span class="text-[9px] font-black tracking-wider">DINNER</span>
+                </div>
+                {% else %}
+                <div
+                    class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-50 transition-colors">
+                    <span class="text-[8px] font-bold uppercase">SKIP</span>
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>

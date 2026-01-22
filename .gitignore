@@ -1,0 +1,28 @@
+# Arby Git Ignore
+
+# Security & Secrets
+.env
+
+# User Data (Private)
+state/
+!state/.gitkeep
+
+# System/Environment
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+env/
+
+# Logs
+*.log
+arby_server.log
+
+# IDEs & System
+.DS_Store
+.vscode/
+*.code-workspace
+.idea/

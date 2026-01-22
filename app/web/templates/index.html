@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<!-- Hero Section -->
+<div class="text-center py-4">
+    <h1 class="text-4xl font-bold text-slate-800 mb-2">Hello, Chef.</h1>
+    <p class="text-slate-500">Your kitchen assistant is ready.</p>
+</div>
+
+<!-- Active Plan Focus -->
+{% if active_plan_exists %}
+<div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group mb-4">
+    <div class="relative z-10 w-full">
+        <h2 class="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Currently Cooking</h2>
+        <div class="text-2xl font-black mb-4 text-slate-800">Your Active Plan</div>
+        <div class="grid grid-cols-3 gap-3">
+            <a href="/plan/view"
+                class="bg-blue-50 text-blue-600 border border-blue-100 py-3 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 hover:bg-blue-100 hover:scale-105 active:scale-95 shadow-sm shadow-blue-50/50">
+                <span>🍴</span> <span>Menu</span>
+            </a>
+            <a href="/plan/grocery"
+                class="bg-green-50 text-green-600 border border-green-100 py-3 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 hover:bg-green-100 hover:scale-105 active:scale-95 shadow-sm shadow-green-50/50">
+                <span>🛒</span> <span>Grocery</span>
+            </a>
+            <a href="/plan/cook"
+                class="bg-red-50 text-red-600 border border-red-100 py-3 rounded-xl text-[10px] sm:text-xs font-black transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 hover:bg-red-100 hover:scale-105 active:scale-95 shadow-sm shadow-red-50/50">
+                <span>🍳</span> <span>Cooking</span>
+            </a>
+        </div>
+    </div>
+    <div class="absolute top-6 right-6 text-4xl filter grayscale opacity-10 pointer-events-none">✨</div>
+</div>
+{% endif %}
+
+<!-- Actions Grid -->
+<div class="grid grid-cols-2 gap-4 mb-4">
+    <a href="/calendar"
+        class="block bg-green-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-green-200 transition duration-200">
+        <div class="text-2xl mb-2">📅</div>
+        <div class="font-semibold text-green-900">Schedule</div>
+        <div class="text-xs text-green-700/60 mt-1">View the calendar</div>
+    </a>
+
+    <a href="/inventory"
+        class="block bg-orange-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-orange-200 transition duration-200">
+        <div class="text-2xl mb-2">🥕</div>
+        <div class="font-semibold text-orange-900">Update Pantry</div>
+        <div class="text-xs text-orange-700/60 mt-1">Avoid waste</div>
+    </a>
+
+    <a href="/cookbook"
+        class="block bg-pink-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-pink-200 transition duration-200">
+        <div class="text-2xl mb-2">📚</div>
+        <div class="font-semibold text-pink-900">Library</div>
+        <div class="text-xs text-pink-700/60 mt-1">Browse all recipes</div>
+    </a>
+
+    <button onclick="openIdeasModal()"
+        class="block bg-purple-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-purple-200 transition duration-200">
+        <div class="text-2xl mb-2">💡</div>
+        <div class="font-semibold text-purple-900">Recipe Ideas</div>
+        <div class="text-xs text-purple-700/60 mt-1">Set the mood</div>
+    </button>
+
+    <button onclick="openModelModal()"
+        class="col-span-2 block bg-blue-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-blue-200 transition duration-200 group relative overflow-hidden">
+        <div class="text-2xl mb-2">⚡️</div>
+        <div class="font-semibold text-blue-900">Generate Plan</div>
+        <div class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full mt-2 inline-block">
+            Chef: {{ current_model.name }}
+        </div>
+        <!-- Subtle sheen effect -->
+        <div
+            class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000">
+        </div>
+    </button>
+</div>
+
+<!-- Status Card -->
+<div onclick="openPlanSettingsModal()"
+    class="bg-white rounded-3xl shadow-sm p-6 border border-slate-100 cursor-pointer hover:border-blue-200 transition-colors group relative">
+
+    <div class="flex justify-between items-center mb-4">
+        <h2
+            class="text-sm font-bold text-slate-400 uppercase tracking-wide group-hover:text-blue-500 transition-colors">
+            Plan Status</h2>
+
+        <!-- Schedule Toggle -->
+        <div class="flex items-center gap-2" onclick="event.stopPropagation()">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider" id="scheduleStatusText">
+                {% if schedule_enabled %}Auto-Run ON{% else %}Auto-Run OFF{% endif %}
+            </span>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="scheduleToggle" class="sr-only peer" {% if schedule_enabled %}checked{% endif
+                    %} onchange="toggleSchedule()">
+                <div
+                    class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600">
+                </div>
+            </label>
+        </div>
+    </div>
+
+    <!-- Plan Configuration Summary -->
+    <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Next Date</label>
+            <div class="font-bold text-slate-800 text-lg" id="displayStartDate">
+                {% if schedule_enabled %}{{ default_start_date }}{% else %}None{% endif %}
+            </div>
+        </div>
+        <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Duration</label>
+            <div class="font-bold text-slate-800 text-lg">
+                {% if schedule_enabled %}
+                <span id="displayDuration">4</span> Days
+                {% else %}
+                -
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="flex flex-col gap-1 mt-4 pt-4 border-t border-slate-100">
+        <div class="flex justify-between items-center">
+            <span class="text-slate-600 text-xs uppercase font-bold tracking-wide">Next Scheduled Run</span>
+            <span class="font-semibold text-slate-800 text-right text-sm">{{ next_run }}</span>
+        </div>
+        <div class="flex justify-between items-center">
+            <span class="text-slate-400 text-xs uppercase font-bold tracking-wide">Previous Run</span>
+            <span class="text-slate-500 text-right text-sm">{{ last_run }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Plan Settings Modal -->
+<div id="planSettingsModal"
+    class="fixed inset-0 bg-black/50 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity">
+    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden scale-100 transition-transform">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+            <h3 class="text-lg font-bold text-slate-800">Plan Settings</h3>
+            <button onclick="closePlanSettingsModal()"
+                class="text-2xl text-slate-400 hover:text-slate-600">&times;</button>
+        </div>
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Next Meal Plan
+                    Date</label>
+                <input type="date" id="settingsStartDate" value="{{ default_start_date }}"
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="text-[10px] text-slate-400 mt-1">Default: {{ default_start_date }}</p>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Duration
+                    (Days)</label>
+                <div class="flex items-center gap-2">
+                    <input type="range" id="settingsDurationRange" min="1" max="8" value="4"
+                        class="flex-grow accent-blue-600"
+                        oninput="document.getElementById('settingsDurationDisplay').innerText = this.value">
+                    <span class="font-bold text-slate-800 w-8 text-center" id="settingsDurationDisplay">4</span>
+                </div>
+            </div>
+        </div>
+        <div class="p-6 border-t border-slate-100 flex justify-end">
+            <button onclick="savePlanSettings()"
+                class="px-6 py-2 bg-slate-900 text-white font-semibold rounded-lg hover:opacity-90">Save
+                Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- Recipe Ideas Modal -->
+{% include "modal_ideas.html" %}
+{% include "modal_generate.html" %}
+
+<script>
+    function openIdeasModal() {
+        document.getElementById('ideasModal').classList.remove('hidden');
+    }
+
+    function closeIdeasModal() {
+        document.getElementById('ideasModal').classList.add('hidden');
+    }
+
+    function openPlanSettingsModal() {
+        document.getElementById('planSettingsModal').classList.remove('hidden');
+    }
+
+    function closePlanSettingsModal() {
+        document.getElementById('planSettingsModal').classList.add('hidden');
+    }
+
+    function savePlanSettings() {
+        // Update Status Card UI
+        const dateVal = document.getElementById('settingsStartDate').value;
+        const durationVal = document.getElementById('settingsDurationRange').value;
+
+        document.getElementById('displayStartDate').innerText = dateVal ? dateVal : "{{ default_start_date }}";
+        document.getElementById('displayDuration').innerText = durationVal;
+
+        closePlanSettingsModal();
+    }
+
+    function toggleSchedule() {
+        const toggle = document.getElementById('scheduleToggle');
+        const text = document.getElementById('scheduleStatusText');
+
+        fetch('/api/schedule/toggle', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    text.innerText = data.new_state ? "Auto-Run ON" : "Auto-Run OFF";
+                    // Reload to update next_run string accurately from server
+                    setTimeout(() => location.reload(), 500);
+                }
+            })
+            .catch(err => console.error(err));
+    }
+
+    // Close modals on outside click
+    window.onclick = function (event) {
+        if (event.target == document.getElementById('ideasModal')) {
+            closeIdeasModal();
+        }
+        if (event.target == document.getElementById('modelModal')) {
+            closeModelModal();
+        }
+        if (event.target == document.getElementById('planSettingsModal')) {
+            closePlanSettingsModal();
+        }
+    }
+</script>
+
+{% endblock %}

@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-bold text-slate-800">Your Pantry</h1>
+    <a href="/" class="text-sm font-semibold text-slate-500 hover:text-slate-800">Back</a>
+</div>
+
+<!-- Quick Add Form -->
+<div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 mb-6">
+    <label class="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-3">Quick Add</label>
+    <form action="/inventory/add" method="POST">
+        <textarea name="ingredients" rows="2"
+            class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 mb-3"
+            placeholder="e.g. Bought a bag of rice, 3 avocados, and some milk."></textarea>
+        <button type="submit"
+            class="w-full bg-slate-900 text-white font-semibold py-3 rounded-xl hover:opacity-90 transition">
+            Add to Inventory (AI Parsed)
+        </button>
+    </form>
+</div>
+
+<!-- Inventory List -->
+<div class="space-y-3">
+    {% if items %}
+    {% for idx, item in items %}
+    <div class="bg-white p-4 rounded-xl border border-slate-100 transition hover:shadow-md cursor-pointer"
+        data-item="{{ item | tojson | forceescape }}" data-index="{{ idx }}" onclick="openEditModal(this)">
+        <div class="flex justify-between items-start">
+            <div>
+                <div class="font-semibold text-slate-800 text-lg">{{ item.item }}</div>
+                <div class="text-sm text-slate-500">{{ item.brand if item.brand else 'Generic' }}</div>
+                <div class="text-xs text-slate-400 mt-1">
+                    Added: {{ item.added_on }}
+                    {% if item.expiry_date %} • Exp: {{ item.expiry_date }} {% endif %}
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span id="qty-{{ idx }}" class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">
+                    {{ item.quantity }} {{ item.unit }}
+                </span>
+                <button onclick="event.stopPropagation(); quickIncrement({{ idx }})"
+                    class="w-6 h-6 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors text-lg font-bold">
+                    +
+                </button>
+            </div>
+            {% if item.size_value %}
+            <span class="text-xs text-slate-400 mt-1">
+                ({{ item.size_value }} {{ item.size_unit }})
+            </span>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="text-center py-12 text-slate-400">
+        Your pantry is empty. <br>Add some items above!
+    </div>
+    {% endif %}
+</div>
+
+<!-- Edit Modal -->
+<div id="editModal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+            <h3 class="text-xl font-bold">Edit Item</h3>
+            <button onclick="closeEditModal()" class="text-2xl text-slate-400 hover:text-slate-600">&times;</button>
+        </div>
+
+        <form id="editForm" method="POST">
+            <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+
+                <!-- Main Info -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2">
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Item Name</label>
+                        <input type="text" name="item" id="modal_item" class="w-full border rounded-lg p-2" required>
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Brand</label>
+                        <input type="text" name="brand" id="modal_brand" class="w-full border rounded-lg p-2">
+                    </div>
+                </div>
+
+                <!-- Quantity -->
+                <div class="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Quantity</label>
+                        <input type="number" step="0.1" name="quantity" id="modal_quantity"
+                            class="w-full border rounded-lg p-2" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Unit</label>
+                        <input type="text" name="unit" id="modal_unit" class="w-full border rounded-lg p-2" required>
+                    </div>
+                </div>
+
+                <!-- Size Info -->
+                <div class="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Size Value</label>
+                        <input type="number" step="0.1" name="size_value" id="modal_size_value"
+                            class="w-full border rounded-lg p-2">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Size Unit</label>
+                        <input type="text" name="size_unit" id="modal_size_unit" class="w-full border rounded-lg p-2">
+                        <p class="text-[10px] text-slate-400 mt-1">e.g. oz, g, ml</p>
+                    </div>
+                </div>
+
+                <!-- Dates -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Purchased</label>
+                        <input type="date" name="purchase_date" id="modal_purchase_date"
+                            class="w-full border rounded-lg p-2">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Expires</label>
+                        <input type="date" name="expiry_date" id="modal_expiry_date"
+                            class="w-full border rounded-lg p-2">
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="p-6 border-t border-slate-100 flex justify-between">
+                <button type="button" onclick="deleteItem()"
+                    class="text-red-600 font-semibold text-sm hover:underline">Delete Item</button>
+                <div class="space-x-2">
+                    <button type="button" onclick="closeEditModal()"
+                        class="px-4 py-2 text-slate-500 font-semibold hover:bg-slate-100 rounded-lg">Cancel</button>
+                    <button type="submit"
+                        class="px-6 py-2 bg-slate-900 text-white font-semibold rounded-lg hover:opacity-90">Save
+                        Changes</button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Hidden Delete Form -->
+        <form id="deleteForm" method="POST" class="hidden"></form>
+    </div>
+</div>
+
+<script>
+    function openEditModal(el) {
+        const index = el.getAttribute('data-index');
+        const item = JSON.parse(el.getAttribute('data-item'));
+
+        document.getElementById('editForm').action = '/inventory/edit/' + index;
+        document.getElementById('deleteForm').action = '/inventory/delete/' + index;
+
+        document.getElementById('modal_item').value = item.item;
+        document.getElementById('modal_brand').value = item.brand || '';
+        document.getElementById('modal_quantity').value = item.quantity;
+        document.getElementById('modal_unit').value = item.unit;
+        document.getElementById('modal_size_value').value = item.size_value || '';
+        document.getElementById('modal_size_unit').value = item.size_unit || '';
+        document.getElementById('modal_purchase_date').value = item.purchase_date || '';
+        document.getElementById('modal_expiry_date').value = item.expiry_date || '';
+
+        document.getElementById('editModal').classList.remove('hidden');
+    }
+
+    function closeEditModal() {
+        document.getElementById('editModal').classList.add('hidden');
+    }
+
+    function deleteItem() {
+        if (confirm("Are you sure you want to delete this item?")) {
+            document.getElementById('deleteForm').submit();
+        }
+    }
+
+    function quickIncrement(index) {
+        const badge = document.getElementById('qty-' + index);
+        const unit = badge.innerText.split(' ').slice(1).join(' ');
+
+        fetch('/inventory/increment/' + index, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    badge.innerText = data.new_quantity + ' ' + unit;
+                    // Subtle animation
+                    badge.classList.add('scale-110');
+                    setTimeout(() => badge.classList.remove('scale-110'), 200);
+                }
+            })
+            .catch(err => console.error(err));
+    }
+</script>
+
+{% endblock %}

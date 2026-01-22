@@ -1,0 +1,548 @@
+<!-- Model Selection Modal -->
+<div id="modelModal"
+    class="fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl transition-all duration-300 flex flex-col max-h-[85vh] scale-95 opacity-0"
+        id="modelModalContent">
+
+        <!-- Header -->
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+            <div>
+                <h2 id="modalTitle" class="text-xl font-bold text-slate-800">Select Your Chef</h2>
+                <p id="modalSubtitle" class="text-slate-500 text-sm mt-1">Choose the AI model to cook your plan.</p>
+            </div>
+            <button onclick="closeModelModal()"
+                class="text-slate-400 hover:text-slate-600 transition p-2 hover:bg-slate-200 rounded-full">
+                ✕
+            </button>
+        </div>
+
+        <!-- Scrollable Content -->
+        <div class="overflow-y-auto p-6 space-y-8 flex-1">
+
+            <form id="modelForm" action="/generate" method="POST">
+
+                <!-- STEP 1: Select Chef -->
+                <div id="flowStep1">
+                    <div class="mb-6">
+                        <div class="flex items-center gap-2 mb-3">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Recommended</h3>
+                            <div class="h-px bg-slate-200 flex-grow"></div>
+                        </div>
+
+                        <div class="space-y-3">
+                            {% for model in models if model.recommended and not model.locked %}
+                            <label class="relative group cursor-pointer block">
+                                <input type="radio" name="model_id" value="{{ model.id }}" class="peer sr-only" {% if
+                                    model.is_core %}checked{% endif %} onchange="updateCostEstimate('{{ model.id }}')">
+
+                                <div
+                                    class="p-4 rounded-xl border-2 border-slate-100 bg-white hover:border-blue-200 hover:bg-blue-50/30 transition-all peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:shadow-sm">
+                                    <div class="flex justify-between items-start">
+                                        <div class="w-full">
+                                            <div class="font-bold text-slate-800 flex items-center gap-2">
+                                                {{ model.name }}
+                                                {% if model.is_core %}
+                                                <span
+                                                    class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full font-bold">DEFAULT</span>
+                                                {% endif %}
+                                                {% if model.top_pick %}
+                                                <span
+                                                    class="text-[10px] bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded-full font-bold">TOP
+                                                    PICK</span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1">
+                                                <div
+                                                    class="text-[10px] text-slate-500 uppercase tracking-wide font-bold">
+                                                    {{
+                                                    model.provider }}</div>
+                                                {% if model.description %}
+                                                <div class="text-[11px] text-slate-400 leading-tight">
+                                                    <span class="hidden sm:inline">•</span> {{ model.description }}
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <!-- Status Icon -->
+                                        <div class="ml-3 flex-shrink-0">
+                                            {% if not model.locked %}
+                                            {% if model.health.status == 'ok' %}
+                                            <div class="text-green-500 text-xs text-center" title="Online">
+                                                <div class="text-[10px] font-bold">●</div>
+                                            </div>
+                                            {% elif model.health.status == 'rate_limit' %}
+                                            <div class="text-yellow-600 text-xs font-bold bg-yellow-100 px-1.5 py-0.5 rounded"
+                                                title="Rate Limit Reached">LIMIT REACHED</div>
+                                            {% elif model.health.status == 'auth_error' %}
+                                            <div class="text-red-500 text-xs font-bold" title="Auth Error">AUTH</div>
+                                            {% elif model.health.status == 'error' %}
+                                            <div class="text-red-500 text-lg" title="Error">⚠️</div>
+                                            {% endif %}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- All Models Section -->
+                    <div>
+                        <div class="flex items-center gap-2 mb-3">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">All Chefs</h3>
+                            <div class="h-px bg-slate-200 flex-grow"></div>
+                        </div>
+
+                        <div class="space-y-2">
+                            {% for model in models if not model.recommended or model.locked %}
+                            <label
+                                class="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer {% if model.locked %}opacity-60 grayscale cursor-not-allowed bg-slate-50{% else %}bg-white{% endif %}">
+                                <div class="flex items-center gap-3">
+                                    <input type="radio" name="model_id" value="{{ model.id }}"
+                                        class="text-blue-600 focus:ring-blue-500 border-slate-300" {% if model.is_core
+                                        %}checked{% endif %} {% if model.locked %}disabled{% endif %}
+                                        onchange="updateCostEstimate('{{ model.id }}')">
+
+                                    <div>
+                                        <div class="font-semibold text-slate-700 text-sm flex items-center gap-2">
+                                            {{ model.name }}
+                                            {% if model.is_core %}
+                                            <span
+                                                class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full font-bold">DEFAULT</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <div class="text-[10px] text-slate-400 uppercase tracking-wide">{{
+                                                model.provider }}</div>
+                                            {% if model.description %}
+                                            <div class="text-[10px] text-slate-400">• {{ model.description }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    {% if not model.locked %}
+                                    {% if model.health.status == 'ok' %}
+                                    <div class="text-[10px] text-green-600 bg-green-50 px-2 py-0.5 rounded font-bold">
+                                        ONLINE
+                                    </div>
+                                    {% elif model.health.status == 'rate_limit' %}
+                                    <div class="text-[10px] text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded font-bold">
+                                        LIMIT REACHED</div>
+                                    {% elif model.health.status == 'auth_error' %}
+                                    <div class="text-[10px] text-red-600 bg-red-50 px-2 py-0.5 rounded font-bold">AUTH
+                                    </div>
+                                    {% elif model.health.status == 'error' %}
+                                    <div class="text-[10px] text-red-600 bg-red-50 px-2 py-0.5 rounded font-bold">FAILED
+                                    </div>
+                                    {% endif %}
+                                    {% endif %}
+
+                                    {% if model.locked %}
+                                    <span class="text-lg" title="Key Missing">🔒</span>
+                                    {% endif %}
+                                </div>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="mt-6 text-center pb-2">
+                        <a href="/settings" class="text-xs text-blue-500 hover:underline">Manage Models and API Keys in
+                            Settings →</a>
+                    </div>
+                </div>
+
+                <!-- STEP 2: Plan Settings -->
+                <div id="flowStep2" class="hidden">
+                    <div class="mb-6 bg-slate-50 p-6 rounded-xl border border-slate-100">
+                        <div class="flex items-center gap-2 mb-4">
+                            <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wide">Plan Settings</h3>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Start
+                                    Date</label>
+                                <input type="date" name="start_date" id="modalStartDate"
+                                    class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
+                            </div>
+                            <div>
+                                <label
+                                    class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Duration
+                                    (Days)</label>
+                                <input type="number" name="duration" id="modalDuration" min="1" max="8"
+                                    class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
+                            </div>
+
+                            <!-- Mini Calendar Widget -->
+                            <div class="mt-4">
+                                <label
+                                    class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Select
+                                    Start Date</label>
+                                <div id="miniCalendarContainer"
+                                    class="min-h-[200px] flex items-center justify-center bg-white rounded-xl border border-slate-200">
+                                    <span class="text-slate-400 text-sm animate-pulse">Loading Calendar...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </form>
+        </div>
+
+        <!-- Footer (Fixed at bottom) -->
+        <div class="p-6 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex-shrink-0">
+            <div class="flex justify-between items-center">
+                <div class="text-xs text-slate-400">
+                    Est. Cost: <span id="costDisplay" class="font-bold text-slate-600">--</span> <span id="costDetails"
+                        class="text-[10px] ml-1"></span>
+                </div>
+                <!-- Step 1 Buttons -->
+                <div id="step1Buttons" class="flex gap-3">
+                    <button onclick="closeModelModal()"
+                        class="px-5 py-2.5 text-slate-500 font-semibold hover:bg-slate-200 rounded-xl transition">Cancel</button>
+                    <button onclick="goToStep2()"
+                        class="px-8 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2">
+                        <span>Select Chef</span>
+                        <span>→</span>
+                    </button>
+                </div>
+                <!-- Step 2 Buttons -->
+                <div id="step2Buttons" class="flex gap-3 hidden">
+                    <button onclick="goToStep1()"
+                        class="px-5 py-2.5 text-slate-500 font-semibold hover:bg-slate-200 rounded-xl transition">Back</button>
+                    <button onclick="submitModelForm()"
+                        class="px-8 py-2.5 bg-green-600 text-white font-bold rounded-xl shadow-lg shadow-green-200 hover:bg-green-700 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2">
+                        <span>Plan Meals</span>
+                        <span>✨</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Full Screen Loading Overlay -->
+<div id="loadingOverlay"
+    class="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center text-white opacity-0 pointer-events-none transition-opacity duration-300">
+    <!-- Animated Background Elements -->
+    <div class="absolute inset-0 overflow-hidden opacity-20">
+        <div
+            class="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl animate-blob">
+        </div>
+        <div
+            class="absolute top-1/4 right-1/4 w-64 h-64 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000">
+        </div>
+        <div
+            class="absolute bottom-1/4 left-1/3 w-64 h-64 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000">
+        </div>
+    </div>
+
+    <!-- Central Animation -->
+    <div class="relative z-10 text-center">
+        <div class="mb-8 flex justify-center">
+            <div class="relative">
+                <!-- Outer Ring -->
+                <div
+                    class="absolute inset-0 rounded-full border-4 border-t-blue-500 border-r-purple-500 border-b-pink-500 border-l-transparent animate-spin w-24 h-24">
+                </div>
+                <!-- Inner Icon -->
+                <div
+                    class="w-24 h-24 rounded-full bg-slate-800 flex items-center justify-center text-5xl shadow-2xl relative z-10">
+                    <span class="animate-bounce">👨‍🍳</span>
+                </div>
+                <!-- Pulsing Glow -->
+                <div class="absolute inset-0 bg-blue-500 rounded-full filter blur-xl opacity-20 animate-pulse"></div>
+            </div>
+        </div>
+
+        <h2
+            class="text-3xl font-black mb-2 tracking-tight bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 text-transparent bg-clip-text">
+            Cooking Up Your Plan
+        </h2>
+        <p class="text-slate-400 text-sm font-medium animate-pulse">
+            Arby is crafting recipes...
+        </p>
+
+        <!-- Progress Bar -->
+        <div class="w-64 h-1.5 bg-slate-800 rounded-full mt-8 overflow-hidden mx-auto shadow-inner">
+            <div id="progressBar"
+                class="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 w-0 transition-all duration-700 ease-out shadow-[0_0_15px_rgba(59,130,246,0.5)]">
+            </div>
+        </div>
+
+        <!-- Fun Steps -->
+        <div class="mt-8 space-y-2 opacity-60">
+            <div class="text-xs font-mono text-slate-500" id="loadingStep1">CHECKING PANTRY...</div>
+            <div class="text-xs font-mono text-slate-500 hidden" id="loadingStep2">REVIEWING HISTORY...</div>
+            <div class="text-xs font-mono text-slate-500 hidden" id="loadingStep3">GENERATING IDEAS...</div>
+            <div class="text-xs font-mono text-slate-500 hidden" id="loadingStep4">WRITING RECIPES...</div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes blob {
+            0% {
+                transform: translate(0px, 0px) scale(1);
+            }
+
+            33% {
+                transform: translate(30px, -50px) scale(1.1);
+            }
+
+            66% {
+                transform: translate(-20px, 20px) scale(0.9);
+            }
+
+            100% {
+                transform: translate(0px, 0px) scale(1);
+            }
+        }
+
+        .animate-blob {
+            animation: blob 7s infinite;
+        }
+
+        .animation-delay-2000 {
+            animation-delay: 2s;
+        }
+
+        .animation-delay-4000 {
+            animation-delay: 4s;
+        }
+    </style>
+
+</div>
+
+<script>
+    function openModelModal() {
+        const modal = document.getElementById('modelModal');
+        const content = document.getElementById('modelModalContent');
+
+        modal.classList.remove('hidden');
+
+        // Reset to Step 1
+        goToStep1();
+
+        // Sync Plan Settings if inputs exist (Home page vs Calendar page might differ slightly)
+        const startInput = document.getElementById('settingsStartDate') || document.getElementById('modalStartDateFallback');
+        const durationInput = document.getElementById('settingsDurationRange') || document.getElementById('modalDurationFallback');
+
+        document.getElementById('modalStartDate').value = (startInput ? startInput.value : null) || "{{ default_start_date }}";
+        document.getElementById('modalDuration').value = (durationInput ? durationInput.value : 4);
+
+        // Trigger reflow
+        void modal.offsetWidth;
+
+        // Animate overlay
+        modal.classList.remove('opacity-0');
+
+        // Animate content
+        content.classList.remove('scale-95');
+        content.classList.remove('opacity-0');
+        content.classList.add('scale-100');
+
+        // Auto-select first available if none checked
+        const inputs = document.querySelectorAll('input[name="model_id"]:not([disabled])');
+        const checked = document.querySelector('input[name="model_id"]:checked');
+        if (!checked && inputs.length > 0) {
+            inputs[0].checked = true;
+            updateCostEstimate(inputs[0].value);
+        } else if (checked) {
+            updateCostEstimate(checked.value);
+        }
+    }
+
+    function goToStep2() {
+        document.getElementById('flowStep1').classList.add('hidden');
+        document.getElementById('flowStep2').classList.remove('hidden');
+        document.getElementById('step1Buttons').classList.add('hidden');
+        document.getElementById('step2Buttons').classList.remove('hidden');
+
+        // Update Title
+        document.getElementById('modalTitle').innerText = "Plan Settings";
+        document.getElementById('modalSubtitle').innerText = "Configure dates and duration.";
+
+        // Load Calendar
+        loadMiniCalendar();
+    }
+
+    function goToStep1() {
+        document.getElementById('flowStep1').classList.remove('hidden');
+        document.getElementById('flowStep2').classList.add('hidden');
+        document.getElementById('step1Buttons').classList.remove('hidden');
+        document.getElementById('step2Buttons').classList.add('hidden');
+
+        // Update Title
+        document.getElementById('modalTitle').innerText = "Select Your Chef";
+        document.getElementById('modalSubtitle').innerText = "Choose the AI model to cook your plan.";
+    }
+
+    function closeModelModal() {
+        const modal = document.getElementById('modelModal');
+        const content = document.getElementById('modelModalContent');
+
+        modal.classList.add('opacity-0');
+        content.classList.remove('scale-100');
+        content.classList.add('scale-95');
+        content.classList.add('opacity-0');
+
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 300);
+    }
+
+    function submitModelForm() {
+        // Show overlay with transition
+        const overlay = document.getElementById('loadingOverlay');
+        if (overlay) {
+            overlay.style.display = 'flex';
+            overlay.style.opacity = '1';
+            overlay.classList.remove('opacity-0', 'pointer-events-none');
+            overlay.classList.add('opacity-100', 'pointer-events-auto');
+        }
+
+        // Hide Modal immediately
+        const modelModal = document.getElementById('modelModal');
+        if (modelModal) modelModal.classList.add('hidden');
+
+        // Start Text Cycler
+        startLoadingCycler();
+
+        // Use a 800ms delay to ensure the user actually sees the loading animation
+        // before the browser starts navigate to the next page
+        setTimeout(() => {
+            document.getElementById('modelForm').submit();
+        }, 800);
+    }
+
+    function startLoadingCycler() {
+        const bar = document.getElementById('progressBar');
+        const steps = [
+            { id: 'loadingStep1', successDelay: 500, progress: 15 },
+            { id: 'loadingStep2', showDelay: 700, successDelay: 1500, progress: 35 },
+            { id: 'loadingStep3', showDelay: 2000, successDelay: 4000, progress: 65 },
+            { id: 'loadingStep4', showDelay: 4500, successDelay: 12000, progress: 95 }
+        ];
+
+        steps.forEach(step => {
+            if (step.showDelay) {
+                setTimeout(() => {
+                    const el = document.getElementById(step.id);
+                    if (el) el.classList.remove('hidden');
+                }, step.showDelay);
+            }
+            setTimeout(() => {
+                const el = document.getElementById(step.id);
+                if (el) el.classList.add('text-green-500');
+                if (bar) bar.style.width = step.progress + '%';
+            }, step.successDelay);
+        });
+    }
+
+    function updateCostEstimate(modelId) {
+        const costDisplay = document.getElementById('costDisplay');
+        const costDetails = document.getElementById('costDetails');
+        if (!costDisplay) return;
+
+        costDisplay.innerText = "Calculating...";
+        costDetails.innerText = "";
+
+        // Gather relevant context inputs
+        const startVal = document.getElementById('modalStartDate') ? document.getElementById('modalStartDate').value : null;
+        const durationVal = document.getElementById('modalDuration') ? document.getElementById('modalDuration').value : 4;
+
+        fetch('/api/estimate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model_id: modelId,
+                start_date: startVal,
+                duration: durationVal
+            })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.estimated_cost !== undefined) {
+                    const cost = data.estimated_cost.toFixed(3);
+                    costDisplay.innerText = data.currency + cost;
+                    costDetails.innerText = "(" + data.details + ")";
+                } else {
+                    costDisplay.innerText = "Error";
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                costDisplay.innerText = "--";
+            });
+    }
+
+    function loadMiniCalendar() {
+        const container = document.getElementById('miniCalendarContainer');
+        if (!container) return;
+
+        const startDateStr = document.getElementById('modalStartDate').value;
+        const duration = document.getElementById('modalDuration').value || 4;
+
+        // Construct URL
+        let url = '/calendar/widget';
+        const params = new URLSearchParams();
+        if (startDateStr) params.append('date', startDateStr);
+        params.append('duration', duration);
+
+        fetch(`${url}?${params.toString()}`)
+            .then(r => r.text())
+            .then(html => {
+                container.innerHTML = html;
+            })
+            .catch(err => {
+                container.innerHTML = '<span class="text-red-500 text-xs">Failed to load.</span>';
+                console.error(err);
+            });
+    }
+
+    // Interactive Toggle for Green Boxes in Mini Calendar
+    function toggleWidgetSlot(day, meal, dateStr) {
+        fetch('/api/calendar/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ day: day, meal: meal, date: dateStr })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    // Reload widget to reflect state change
+                    loadMiniCalendar();
+
+                    // Also trigger cost update since active slots changed
+                    const checked = document.querySelector('input[name="model_id"]:checked');
+                    if (checked) {
+                        // Small delay to ensure server saved config
+                        setTimeout(() => updateCostEstimate(checked.value), 200);
+                    }
+                } else {
+                    console.error('Toggle failed', data);
+                }
+            })
+            .catch(err => console.error(err));
+    }
+
+    // Bind change events for auto-refresh in modal
+    document.addEventListener('DOMContentLoaded', () => {
+        const startInput = document.getElementById('modalStartDate');
+        const durationInput = document.getElementById('modalDuration');
+
+        const updateAll = () => {
+            loadMiniCalendar();
+            const checked = document.querySelector('input[name="model_id"]:checked');
+            if (checked) {
+                updateCostEstimate(checked.value);
+            }
+        };
+
+        if (startInput) startInput.addEventListener('change', updateAll);
+        if (durationInput) durationInput.addEventListener('change', updateAll);
+    });
+</script>

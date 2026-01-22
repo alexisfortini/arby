@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto pb-20">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-black text-slate-800 tracking-tight">Review Draft Plan</h1>
+            <p class="text-slate-500 mt-1">Check the recipes and confirm to finalize.</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="/"
+                class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors">Discard</a>
+            <form action="/plan/confirm" method="POST">
+                <button type="submit"
+                    class="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold hover:shadow-lg hover:opacity-90 transition-all">
+                    Confirm Plan & Send Email
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 mb-8 text-indigo-900 leading-relaxed">
+        <h3 class="text-sm font-bold text-indigo-400 uppercase tracking-wider mb-2">Chef's Note</h3>
+        {{ plan.summary_message }}
+    </div>
+
+    <!-- Chat/Edit Interface -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8">
+        <form action="/plan/modify" method="POST" onsubmit="showLoading(this)">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Ask the Chef for Changes</h3>
+
+                <!-- Chef Toggle -->
+                <div class="flex items-center bg-slate-100 p-1 rounded-lg gap-1 border border-slate-200/50">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="chef" value="main" checked class="peer sr-only">
+                        <span
+                            class="px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-tight transition-all peer-checked:bg-white peer-checked:text-indigo-600 peer-checked:shadow-sm text-slate-400 block">Main
+                            Chef</span>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="chef" value="sous" class="peer sr-only">
+                        <span
+                            class="px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-tight transition-all peer-checked:bg-white peer-checked:text-emerald-600 peer-checked:shadow-sm text-slate-400 block">Sous
+                            Chef</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3">
+                <textarea name="feedback" rows="2"
+                    placeholder="e.g. 'Swap Tuesday's pasta for tacos' or 'I don't like mushrooms, please replace them.'"
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-slate-400">Arby will update the plan & shopping list accordingly.</span>
+                    <button type="submit"
+                        class="px-4 py-2 bg-slate-800 text-white text-xs font-bold rounded-lg hover:bg-slate-700 transition-colors flex items-center gap-2">
+                        <span>Modify Plan</span>
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading State (Hidden by default) -->
+            <div
+                class="loading-overlay hidden absolute inset-0 bg-white/80 flex flex-col items-center justify-center rounded-2xl z-10 p-6">
+                <div class="text-center w-full max-w-[200px]">
+                    <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mb-2"></div>
+                    <p class="text-xs font-bold text-indigo-600 mb-3">Cooking up changes...</p>
+
+                    <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                        <div id="modifyProgressBar"
+                            class="h-full bg-indigo-600 w-0 transition-all duration-500 ease-out"></div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Days Loop -->
+    <div class="space-y-6">
+        {% for day in plan.days %}
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <!-- Day Header -->
+            <div class="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                <h2 class="text-xl font-bold text-slate-800">{{ day.date }}</h2> <!-- Ideally format this date -->
+            </div>
+
+            <div class="divide-y divide-slate-100">
+                {% for meal_type in ['breakfast', 'lunch', 'dinner'] %}
+                {% set meal = day[meal_type] %}
+                {% if meal %}
+                <div x-data="{ open: false }" class="group">
+                    <!-- Meal Summary Row -->
+                    <div @click="open = !open"
+                        class="px-6 py-4 cursor-pointer hover:bg-slate-50 transition-colors flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <span class="text-xs font-black uppercase tracking-wider w-20 text-right 
+                                    {% if meal_type == 'breakfast' %}text-orange-400
+                                    {% elif meal_type == 'lunch' %}text-emerald-400
+                                    {% else %}text-indigo-400{% endif %}">
+                                {{ meal_type }}
+                            </span>
+                            <span class="font-bold text-slate-700 text-lg">{{ meal.name }}</span>
+                            {% if meal.source == 'library' %}
+                            <span
+                                class="text-[10px] bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full font-bold border border-indigo-100 uppercase tracking-tight">Library</span>
+                            {% else %}
+                            <span
+                                class="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-bold border border-amber-100 uppercase tracking-tight">Chef's
+                                Special</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-slate-300">
+                            <svg :class="{'rotate-180': open}" class="w-5 h-5 transition-transform" fill="none"
+                                stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Recipe (Accordion) -->
+                    <div x-show="open" class="px-6 py-6 bg-slate-50/50 border-t border-slate-100 ml-24"
+                        style="display: none;">
+                        <div class="grid md:grid-cols-2 gap-8">
+                            <!-- Ingredients -->
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-400 uppercase mb-3 text-center">Ingredients</h4>
+                                <ul class="space-y-1 text-sm text-slate-600">
+                                    {% for ing in meal.ingredients %}
+                                    <li class="flex items-start gap-2">
+                                        <span class="text-indigo-400 mt-1">•</span>
+                                        {{ ing }}
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            <!-- Instructions -->
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-400 uppercase mb-3 text-center">Instructions
+                                </h4>
+                                <ol class="space-y-3 text-sm text-slate-600 list-decimal list-outside pl-4">
+                                    {% for step in meal.instructions %}
+                                    <li>{{ step }}</li>
+                                    {% endfor %}
+                                </ol>
+                            </div>
+                        </div>
+
+                        <!-- Action Bar for recipes -->
+                        {% if meal.source != 'library' %}
+                        <div class="mt-8 pt-4 border-t border-slate-100 flex justify-end">
+                            <button @click="saveMealToCookbook({{ meal | tojson | forceescape }})"
+                                class="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg hover:bg-emerald-100 transition-colors flex items-center gap-2">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                </svg>
+                                Save to Cookbook Library
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Shopping List -->
+    <div class="mt-12 bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
+        <h2 class="text-2xl font-bold text-slate-800 mb-6">Shopping List</h2>
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-2">
+            {% for item in plan.shopping_list %}
+            <div class="flex items-center gap-2 text-slate-600">
+                <input type="checkbox" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                <span>{{ item }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Add Alpine.js for lightweight interactivity -->
+<script src="//unpkg.com/alpinejs" defer></script>
+<script>
+    function showLoading(form) {
+        const btn = form.querySelector('button[type="submit"]');
+        const overlay = form.querySelector('.loading-overlay');
+        const bar = document.getElementById('modifyProgressBar');
+
+        btn.disabled = true;
+        btn.classList.add('opacity-50');
+
+        form.closest('.bg-white').classList.add('relative');
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += Math.random() * 15;
+            if (progress > 95) {
+                progress = 95;
+                clearInterval(interval);
+            }
+            if (bar) bar.style.width = progress + '%';
+        }, 400);
+    }
+
+    async function saveMealToCookbook(meal) {
+        if (!confirm('Save "' + meal.name + '" to your cookbook library?')) return;
+
+        try {
+            const response = await fetch('/api/cookbook/add_from_plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(meal)
+            });
+            const result = await response.json();
+            if (result.status === 'ok') {
+                alert(result.message);
+                window.location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (e) {
+            alert('Error: ' + e);
+        }
+    }
+</script>
+{% endblock %}

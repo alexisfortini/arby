@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto pb-32">
+    <!-- Header -->
+    <div class="mb-8 text-center">
+        <div class="flex items-center justify-center gap-2 mb-2">
+            <span
+                class="bg-green-100 text-green-700 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Active
+                Plan</span>
+        </div>
+        <h1 class="text-3xl font-black text-slate-800 tracking-tight">Live Cooking</h1>
+    </div>
+
+    {% include 'active_plan_nav.html' %}
+
+    <div class="space-y-12">
+        <!-- Active Meals Section -->
+        <div>
+            <div class="flex items-center justify-center gap-4 mb-10">
+                <div class="h-px bg-slate-200 flex-grow max-w-[100px]"></div>
+                <h2 class="text-sm font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3">
+                    <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                    Still to Cook
+                </h2>
+                <div class="h-px bg-slate-200 flex-grow max-w-[100px]"></div>
+            </div>
+            <div class="space-y-12">
+                {% for day in plan.days %}
+                {% set ns = namespace(has_active=False) %}
+                {% for mt in ['breakfast', 'lunch', 'dinner'] %}
+                {% set m = day[mt] %}
+                {% if m %}
+                {% set mid = day.date + '-' + mt %}
+                {% set is_this_done = plan.completed_meals.get(mid, False) if plan.completed_meals else False %}
+                {% if not is_this_done %}
+                {% set ns.has_active = True %}
+                {% endif %}
+                {% endif %}
+                {% endfor %}
+
+                {% if ns.has_active %}
+                <div class="space-y-6">
+                    <div class="flex items-center gap-4">
+                        <div class="h-px bg-slate-200 flex-grow"></div>
+                        <h2 class="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">{{ day.date }}</h2>
+                        <div class="h-px bg-slate-200 flex-grow"></div>
+                    </div>
+
+                    {% for meal_type in ['breakfast', 'lunch', 'dinner'] %}
+                    {% set meal = day[meal_type] %}
+                    {% if meal %}
+                    {% set meal_id = day.date + '-' + meal_type %}
+                    {% set is_meal_done = plan.completed_meals.get(meal_id, False) if plan.completed_meals else False %}
+                    {% if not is_meal_done %}
+                    <div id="meal-card-{{ meal_id }}"
+                        class="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden transition-all">
+                        <div class="p-6 sm:p-10">
+                            <div class="flex items-center gap-3 mb-6">
+                                <span
+                                    class="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                    {{ meal_type }}
+                                </span>
+                                <div class="flex flex-col">
+                                    <div class="flex items-center gap-3">
+                                        <h3 class="text-2xl font-bold text-slate-800">{{ meal.name }}</h3>
+                                        {% if meal.source == 'library' %}
+                                        <span
+                                            class="text-[10px] bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-md font-bold border border-indigo-100 uppercase tracking-tight">Library</span>
+                                        {% else %}
+                                        <span
+                                            class="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md font-bold border border-amber-100 uppercase tracking-tight">Chef's
+                                            Special</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Ingredients Checkbox -->
+                            <div class="mb-10">
+                                <h4 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Ingredients
+                                </h4>
+                                <div class="grid sm:grid-cols-2 gap-3">
+                                    {% for ing in meal.ingredients %}
+                                    {% set item_id = day.date + '-' + meal_type + '-' + loop.index0|string %}
+                                    {% set is_checked = plan.checked_cooking_ingredients.get(item_id, False) if
+                                    plan.checked_cooking_ingredients else False %}
+                                    <div
+                                        class="flex items-center gap-2 p-3 rounded-xl border border-slate-50 hover:bg-slate-50 transition-all group {{ 'opacity-50' if is_checked else '' }}">
+                                        <label class="flex items-start gap-3 flex-grow cursor-pointer">
+                                            <input type="checkbox" {{ 'checked' if is_checked else '' }}
+                                                onchange="toggleCookingIngredient('{{ item_id }}', this)"
+                                                class="mt-1 rounded-md border-slate-300 text-blue-600 focus:ring-blue-500">
+                                            <span
+                                                class="text-sm {{ 'line-through text-slate-400' if is_checked else 'text-slate-600 font-medium' }}">{{
+                                                ing }}</span>
+                                        </label>
+                                        <button onclick="markOutOfStock('{{ ing }}', this)" title="I'm out of this"
+                                            class="p-3 -mr-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-40 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <!-- Method -->
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6">Instructions
+                                </h4>
+                                <div class="space-y-8">
+                                    {% for step in meal.instructions %}
+                                    {% set step_id = day.date + '-' + meal_type + '-step-' + loop.index0|string %}
+                                    {% set is_step_done = plan.completed_cooking_steps.get(step_id, False) if
+                                    plan.completed_cooking_steps else False %}
+                                    <div class="flex gap-6 group cursor-pointer"
+                                        onclick="toggleStep('{{ step_id }}', this)">
+                                        <div
+                                            class="step-num flex-shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center text-sm font-black transition-all {{ 'bg-green-100 text-green-600 border border-green-200' if is_step_done else 'bg-slate-50 border border-slate-100 text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600' }}">
+                                            {{ loop.index }}
+                                        </div>
+                                        <p
+                                            class="step-text text-lg leading-relaxed pt-1 font-medium transition-all {{ 'line-through text-slate-300' if is_step_done else 'text-slate-700 group-hover:text-slate-900' }}">
+                                            {{ step }}
+                                        </p>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-slate-50 px-10 py-4 grid grid-cols-3 items-center border-t border-slate-100">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Arby Assistant</span>
+                            
+                            <div class="flex justify-center">
+                                {% if meal.source != 'library' %}
+                                <button onclick="saveMealToCookbook({{ meal | tojson | forceescape }})"
+                                    class="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:text-emerald-700 flex items-center gap-2">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                    </svg>
+                                    Save to Library
+                                </button>
+                                {% endif %}
+                            </div>
+
+                            <div class="flex justify-end">
+                                <button onclick="toggleMealCompletion('{{ meal_id }}', this)"
+                                    id="meal-btn-{{ meal_id }}" class="text-xs font-bold text-blue-600 hover:underline">
+                                    Done with this meal
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Finished Section -->
+        {% set ns_done = namespace(has_any_done=False) %}
+        {% for day in plan.days %}
+        {% for mt in ['breakfast', 'lunch', 'dinner'] %}
+        {% set is_done = plan.completed_meals.get(day.date + '-' + mt, False) if plan.completed_meals else False %}
+        {% if day[mt] and is_done %}
+        {% set ns_done.has_any_done = True %}
+        {% endif %}
+        {% endfor %}
+        {% endfor %}
+
+        {% if ns_done.has_any_done %}
+        <div class="pt-12 border-t border-slate-200">
+            <div class="flex items-center justify-center gap-4 mb-10">
+                <div class="h-px bg-slate-200 flex-grow max-w-[100px]"></div>
+                <h2 class="text-sm font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3">
+                    <span class="w-2 h-2 rounded-full bg-slate-300"></span>
+                    Finished Cooking
+                </h2>
+                <div class="h-px bg-slate-200 flex-grow max-w-[100px]"></div>
+            </div>
+            <div class="grid gap-4">
+                {% for day in plan.days %}
+                {% for mt in ['breakfast', 'lunch', 'dinner'] %}
+                {% set meal = day[mt] %}
+                {% if meal %}
+                {% set meal_id = day.date + '-' + mt %}
+                {% set is_done = plan.completed_meals.get(meal_id, False) if plan.completed_meals else False %}
+                {% if is_done %}
+                <div
+                    class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex items-center justify-between opacity-60">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-600">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">{{ mt }} • {{
+                                day.date }}</div>
+                            <div class="font-bold text-slate-700">{{ meal.name }}</div>
+                        </div>
+                    </div>
+                    <button onclick="toggleMealCompletion('{{ meal_id }}', this)"
+                        class="text-xs font-bold text-blue-600 hover:underline px-4">
+                        Undo
+                    </button>
+                </div>
+                {% endif %}
+                {% endif %}
+                {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    function toggleStep(stepId, element) {
+        const num = element.querySelector('.step-num');
+        const text = element.querySelector('.step-text');
+
+        fetch('/api/plan/cook/toggle_step', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ step_id: stepId })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    if (data.completed) {
+                        text.classList.add('line-through', 'text-slate-300');
+                        text.classList.remove('text-slate-700');
+                        num.classList.add('bg-green-100', 'text-green-600', 'border-green-200');
+                        num.classList.remove('bg-slate-50', 'text-slate-400', 'border-slate-100');
+                    } else {
+                        text.classList.remove('line-through', 'text-slate-300');
+                        text.classList.add('text-slate-700');
+                        num.classList.remove('bg-green-100', 'text-green-600', 'border-green-200');
+                        num.classList.add('bg-slate-50', 'text-slate-400', 'border-slate-100');
+                    }
+                }
+            })
+            .catch(err => console.error(err));
+    }
+
+    function toggleCookingIngredient(itemId, element) {
+        const container = element.closest('.flex');
+        const text = container.querySelector('span');
+
+        fetch('/api/plan/cook/toggle_ingredient', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ item_id: itemId })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    if (data.checked) {
+                        text.classList.add('line-through', 'text-slate-400');
+                        text.classList.remove('text-slate-600', 'font-medium');
+                        container.classList.add('opacity-50');
+                    } else {
+                        text.classList.remove('line-through', 'text-slate-400');
+                        text.classList.add('text-slate-600', 'font-medium');
+                        container.classList.remove('opacity-50');
+                    }
+                }
+            })
+            .catch(err => console.error(err));
+    }
+
+    function toggleMealCompletion(mealId, btn) {
+        fetch('/api/plan/cook/toggle_meal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ meal_id: mealId })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    window.location.reload();
+                }
+            })
+            .catch(err => console.error(err));
+    }
+
+    function markOutOfStock(ingredient, btn) {
+        if (!confirm(`Mark "${ingredient}" as out of stock and remove from pantry?`)) return;
+
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+        btn.disabled = true;
+
+        fetch('/api/inventory/remove_by_recipe_item', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ingredient: ingredient })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    btn.innerHTML = '✅';
+                    btn.classList.remove('text-slate-300');
+                    btn.classList.add('text-green-500');
+                    setTimeout(() => {
+                        btn.parentElement.classList.add('opacity-50');
+                    }, 500);
+                } else if (data.status === 'not_found') {
+                    alert("Arby couldn't find a matching item in your pantry to remove.");
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                } else {
+                    alert("Error: " + data.message);
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            });
+    }
+
+    async function saveMealToCookbook(meal) {
+        if (!confirm('Save "' + meal.name + '" to your cookbook library?')) return;
+
+        try {
+            const response = await fetch('/api/cookbook/add_from_plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(meal)
+            });
+            const result = await response.json();
+            if (result.status === 'ok') {
+                alert(result.message);
+                window.location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (e) {
+            alert('Error: ' + e);
+        }
+    }
+</script>
+{% endblock %}

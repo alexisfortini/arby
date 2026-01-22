@@ -1,0 +1,203 @@
+#!/bin/bash
+
+# Arby Management Script
+# This script manages the Arby server (Start, Stop, Restart, Status, Logs, Check)
+
+# Colors for better output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+BOLD='\033[1m'
+
+PORT=5005
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+LOG_FILE="$DIR/arby_server.log"
+
+# Function to find the PID
+function find_pid() {
+    lsof -ti:$PORT | head -n 1
+}
+
+# Function to check environment
+function check() {
+    echo -e "${BLUE}${BOLD}🔍 Checking Arby Environment...${NC}"
+    
+    # 1. Check Directory
+    echo -n "📁 Directory Structure: "
+    if [ -d "$DIR/app" ] && [ -d "$DIR/state" ]; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${RED}FAILED${NC} (app/ or state/ missing)"
+    fi
+
+    # 2. Check .env
+    echo -n "🔑 .env file: "
+    if [ -f "$DIR/.env" ]; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${RED}MISSING${NC}"
+        echo -e "   ${BLUE}Tip: Create .env from .env.example with your API keys.${NC}"
+    fi
+
+    # 3. Check Virtual Environment
+    echo -n "🐍 Virtual Env: "
+    VENV_PATH=""
+    if [ -d "$DIR/.venv" ]; then
+        echo -e "${GREEN}Found (.venv)${NC}"
+        VENV_PATH="$DIR/.venv"
+    elif [ -d "$DIR/venv" ]; then
+        echo -e "${GREEN}Found (venv)${NC}"
+        VENV_PATH="$DIR/venv"
+    else
+        echo -e "${RED}NOT FOUND${NC}"
+        echo -e "   ${BLUE}Note: Arby will use system python if no .venv exists.${NC}"
+    fi
+
+    # 4. Check Dependencies & Syntax
+    echo -n "🧪 Logic & Imports: "
+    # Temporarily activate venv for check if found
+    if [ -n "$VENV_PATH" ]; then
+        source "$VENV_PATH/bin/activate"
+    fi
+    
+    export PYTHONPATH="$DIR"
+    python3 "$DIR/verify_app.py" > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}PASSED${NC}"
+    else
+        echo -e "${RED}FAILED${NC}"
+        echo -e "   ${BLUE}Run 'python3 verify_app.py' to see errors.${NC}"
+    fi
+    
+    # Deactivate venv if it was activated
+    if [ -n "$VENV_PATH" ]; then
+        deactivate > /dev/null 2>&1 || true
+    fi
+
+    # 5. Check Port & Service
+    echo -n "🔌 Port $PORT: "
+    PID=$(find_pid)
+    if [ -n "$PID" ]; then
+        echo -e "${BLUE}In Use (PID: $PID)${NC}"
+        echo -n "📡 Service Health: "
+        HEALTH=$(curl -s "http://127.0.0.1:$PORT/health" | grep -o "healthy")
+        if [ "$HEALTH" == "healthy" ]; then
+            echo -e "${GREEN}RESPONDING OK${NC}"
+        else
+            echo -e "${RED}NOT RESPONDING${NC} (Check logs)"
+        fi
+    else
+        echo -e "${GREEN}Available${NC}"
+    fi
+}
+
+# Function to start the server
+function start() {
+    PID=$(find_pid)
+    if [ -n "$PID" ]; then
+        echo -e "✅ ${GREEN}Arby is already running (PID: $PID)${NC}"
+    else
+        # Pre-start checks
+        if [ ! -f "$DIR/.env" ]; then
+            echo -e "❌ ${RED}Error: .env file missing. Run './arby check' for details.${NC}"
+            exit 1
+        fi
+
+        echo -e "🚀 ${BOLD}Starting Arby in background...${NC}"
+        
+        # We run run_arby.sh in the background
+        # It will handle venv activation if we update it there too
+        nohup "$DIR/run_arby.sh" > "$LOG_FILE" 2>&1 &
+        
+        # Poll for process start
+        for i in {1..5}; do
+            sleep 1
+            PID=$(find_pid)
+            if [ -n "$PID" ]; then
+                echo -e "✅ ${GREEN}Arby started successfully (PID: $PID)${NC}"
+                echo -e "� ${BLUE}Link: http://127.0.0.1:$PORT${NC}"
+                echo -e "📝 ${BLUE}Logs: $LOG_FILE${NC}"
+                return
+            fi
+        done
+        
+        echo -e "❌ ${RED}Failed to start Arby. Check $LOG_FILE for details.${NC}"
+    fi
+}
+
+# Function to stop the server
+function stop() {
+    PIDS=$(lsof -ti:$PORT)
+    if [ -n "$PIDS" ]; then
+        echo -e "🛑 ${BOLD}Stopping Arby (PIDs: $(echo $PIDS | tr '\n' ' '))...${NC}"
+        echo $PIDS | xargs kill -9
+        echo -e "✅ ${GREEN}Arby stopped.${NC}"
+    else
+        echo -e "ℹ️ ${BLUE}Arby is not running.${NC}"
+    fi
+}
+
+# Function to show status
+function status() {
+    PID=$(find_pid)
+    if [ -n "$PID" ]; then
+        echo -e "🟢 ${GREEN}${BOLD}Arby is RUNNING${NC}"
+        echo -e "   ${BLUE}PID: $PID${NC}"
+        echo -e "   ${BLUE}URL: http://127.0.0.1:$PORT${NC}"
+    else
+        echo -e "🔴 ${RED}${BOLD}Arby is STOPPED${NC}"
+    fi
+}
+
+# Function to show logs
+function logs() {
+    if [ -f "$LOG_FILE" ]; then
+        echo -e "${BLUE}${BOLD}📄 Tailing logs (Ctrl+C to stop):${NC}"
+        tail -f "$LOG_FILE"
+    else
+        echo -e "❌ ${RED}Log file not found.${NC}"
+    fi
+}
+
+# Improved help/usage
+function usage() {
+    echo -e "${BOLD}Arby Management CLI${NC}"
+    echo "Usage: $0 {command}"
+    echo ""
+    echo "Commands:"
+    echo -e "  ${GREEN}start${NC}    Start Arby in the background"
+    echo -e "  ${RED}stop${NC}     Stop the running Arby server"
+    echo -e "  ${BLUE}restart${NC}  Stop then start the server"
+    echo -e "  ${BOLD}status${NC}   Check if Arby is running"
+    echo -e "  ${BOLD}logs${NC}     View live server output"
+    echo -e "  ${BOLD}check${NC}    Validate environment and config"
+    echo ""
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart)
+        stop
+        sleep 1
+        start
+        ;;
+    status)
+        status
+        ;;
+    logs)
+        logs
+        ;;
+    check)
+        check
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac

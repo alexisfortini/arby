@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<!-- Header & Controls -->
+<div class="flex flex-col space-y-4 mb-6">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-slate-800">{{ month_name }} {{ year }}</h1>
+
+        <div class="flex items-center space-x-2 bg-white p-1 rounded-full shadow-sm border border-slate-100">
+            <!-- Prev -->
+            <a href="/calendar?date={{ prev_date }}&view={{ view_mode }}"
+                class="p-2 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-600 transition-colors">
+                ◀️
+            </a>
+
+            <!-- Today -->
+            <a href="/calendar?view={{ view_mode }}"
+                class="px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
+                Today
+            </a>
+
+            <!-- Next -->
+            <a href="/calendar?date={{ next_date }}&view={{ view_mode }}"
+                class="p-2 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-600 transition-colors">
+                ▶️
+            </a>
+        </div>
+    </div>
+
+    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-50 pb-4">
+            <div class="flex items-center space-x-2">
+                <span class="text-sm font-bold text-slate-800">🎯 Planning Horizon</span>
+            </div>
+
+            <!-- Generate Button (Opens Modal) -->
+            <button onclick="openModelModal()"
+                class="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl shadow-lg shadow-blue-100 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                <span class="text-xs font-black uppercase tracking-wider">Generate Plan</span>
+                <span class="text-sm">⚡</span>
+            </button>
+        </div>
+
+        <!-- View Case -->
+        <div class="flex space-x-1 overflow-x-auto">
+            {% for mode, label in [('day', 'Day'), ('3day', '3 Day'), ('work_week', '5 Day'), ('week', 'Week'),
+            ('month', 'Month')] %}
+            <a href="/calendar?view={{ mode }}&date={{ ref_date }}"
+                class="px-4 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap
+                      {% if view_mode == mode %} bg-slate-900 text-white {% else %} bg-slate-50 text-slate-500 hover:bg-slate-100 {% endif %}">
+                {{ label }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Hidden Toggle Form -->
+    <form id="toggleSlotForm" action="/calendar/toggle_slot" method="POST" class="hidden">
+        <input type="hidden" name="day" id="toggle_day">
+        <input type="hidden" name="meal" id="toggle_meal">
+        <input type="hidden" name="view_mode" value="{{ view_mode }}">
+        <input type="hidden" name="date" value="{{ ref_date }}">
+    </form>
+</div>
+
+<!-- Calendar Grid -->
+{% set grid_cols = 'grid-cols-7' %}
+{% if view_mode == 'work_week' %}{% set grid_cols = 'grid-cols-5' %}{% endif %}
+{% if view_mode == '3day' %}{% set grid_cols = 'grid-cols-3' %}{% endif %}
+{% if view_mode == 'day' %}{% set grid_cols = 'grid-cols-1' %}{% endif %}
+
+<div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+    <!-- Headers -->
+    <div class="grid {{ grid_cols }} border-b border-slate-100 bg-slate-50">
+        <!-- Dummy Loop -->
+        {% for day in calendar_days[:7] if view_mode == 'month' or view_mode == 'week' %}
+        {% endfor %}
+
+        {% set headers_count = 7 %}
+        {% if view_mode == 'work_week' %}{% set headers_count = 5 %}{% endif %}
+        {% if view_mode == '3day' %}{% set headers_count = 3 %}{% endif %}
+        {% if view_mode == 'day' %}{% set headers_count = 1 %}{% endif %}
+
+        {% for i in range(headers_count) %}
+        {% if calendar_days[i] %}
+        <div class="py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-500">
+            {{ calendar_days[i].day_name[:3] }}
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- Dates -->
+    <div class="grid {{ grid_cols }} auto-rows-fr w-full border-t border-l border-slate-100">
+        {% for day in calendar_days %}
+        {% set day_config = config.schedule[day.day_name] %}
+
+        <div class="min-h-[220px] border-b border-r border-slate-100 p-3 relative group transition-colors overflow-hidden
+                {% if not day.in_month and view_mode == 'month' %} bg-slate-50/30 {% endif %}
+                {% if day.is_today %} ring-2 ring-inset ring-blue-100 bg-blue-50/10 {% endif %}">
+
+            <div class="flex justify-between items-center mb-3">
+                <span
+                    class="text-sm font-bold {% if day.is_today %} text-blue-600 {% else %} text-slate-700 {% endif %}">
+                    {{ day.date_num }}
+                    {% if view_mode != 'month' %}<span class="text-xs font-normal text-slate-400 ml-1">{{ day.day_name
+                        }}</span>{% endif %}
+                </span>
+                {% if day.in_plan_window %}
+                <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                {% endif %}
+            </div>
+
+            <!-- Meal Slots -->
+            <div class="space-y-2">
+                <!-- Breakfast -->
+                <div onclick="toggleSlot('{{ day.day_name }}', 'breakfast', '{{ day.date_iso }}')"
+                    class="cursor-pointer group/slot relative h-16">
+                    {% if day.content.breakfast %}
+                    {% if day_config.breakfast %}
+                    <!-- ON + FILLED = OVERWRITE -->
+                    <div
+                        class="h-full w-full px-2 rounded-lg bg-green-500 text-white shadow-md border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                        <span
+                            class="text-[8px] font-black uppercase text-green-100 tracking-wider block mb-0.5">Overwrite</span>
+                        <span class="font-medium leading-tight opacity-90 italic text-[11px] truncate">{{
+                            day.content.breakfast }}</span>
+                    </div>
+                    {% else %}
+                    <!-- OFF + FILLED = SAVED (Normal) -->
+                    <div
+                        class="h-full w-full px-2 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">🍳
+                            Breakfast</span>
+                        <span class="font-medium leading-tight text-[11px] truncate">{{ day.content.breakfast }}</span>
+                    </div>
+                    {% endif %}
+                    {% elif day_config.breakfast %}
+                    <!-- Empty Configured Slot -->
+                    {% if day.in_plan_window %}
+                    <div
+                        class="h-full w-full rounded-lg bg-green-500 text-white shadow-sm flex items-center justify-center transition-all active:scale-95">
+                        <span class="text-[10px] font-black tracking-wider">BREAKFAST</span>
+                    </div>
+                    {% else %}
+                    <div
+                        class="h-full w-full border border-green-200 text-green-600 rounded-lg flex items-center justify-center text-[9px] font-bold hover:bg-green-50 transition-colors">
+                        BREAKFAST
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <!-- Disabled (Grey) -->
+                    <div
+                        class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-50 transition-colors">
+                        <span class="text-[8px] font-bold uppercase">SKIP</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Lunch -->
+                <div onclick="toggleSlot('{{ day.day_name }}', 'lunch', '{{ day.date_iso }}')"
+                    class="cursor-pointer group/slot relative h-16">
+                    {% if day.content.lunch %}
+                    {% if day_config.lunch %}
+                    <div
+                        class="h-full w-full px-2 rounded-lg bg-green-500 text-white shadow-md border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                        <span
+                            class="text-[8px] font-black uppercase text-green-100 tracking-wider block mb-0.5">Overwrite</span>
+                        <span class="font-medium leading-tight opacity-90 italic text-[11px] truncate">{{
+                            day.content.lunch }}</span>
+                    </div>
+                    {% else %}
+                    <div
+                        class="h-full w-full px-2 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">🥗
+                            Lunch</span>
+                        <span class="font-medium leading-tight text-[11px] truncate">{{ day.content.lunch }}</span>
+                    </div>
+                    {% endif %}
+                    {% elif day_config.lunch %}
+                    {% if day.in_plan_window %}
+                    <div
+                        class="h-full w-full rounded-lg bg-green-500 text-white shadow-sm flex items-center justify-center transition-all active:scale-95">
+                        <span class="text-[10px] font-black tracking-wider">LUNCH</span>
+                    </div>
+                    {% else %}
+                    <div
+                        class="h-full w-full border border-green-200 text-green-600 rounded-lg flex items-center justify-center text-[9px] font-bold hover:bg-green-50 transition-colors">
+                        LUNCH
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div
+                        class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-50 transition-colors">
+                        <span class="text-[8px] font-bold uppercase">SKIP</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Dinner -->
+                <div onclick="toggleSlot('{{ day.day_name }}', 'dinner', '{{ day.date_iso }}')"
+                    class="cursor-pointer group/slot relative h-16">
+                    {% if day.content.dinner %}
+                    {% if day_config.dinner %}
+                    <div
+                        class="h-full w-full px-2 rounded-lg bg-green-500 text-white shadow-md border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                        <span
+                            class="text-[8px] font-black uppercase text-green-100 tracking-wider block mb-0.5">Overwrite</span>
+                        <span class="font-medium leading-tight opacity-90 italic text-[11px] truncate">{{
+                            day.content.dinner }}</span>
+                    </div>
+                    {% else %}
+                    <div
+                        class="h-full w-full px-2 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">🍽️
+                            Dinner</span>
+                        <span class="font-medium leading-tight text-[11px] truncate">{{ day.content.dinner }}</span>
+                    </div>
+                    {% endif %}
+                    {% elif day_config.dinner %}
+                    {% if day.in_plan_window %}
+                    <div
+                        class="h-full w-full rounded-lg bg-green-500 text-white shadow-sm flex items-center justify-center transition-all active:scale-95">
+                        <span class="text-[10px] font-black tracking-wider">DINNER</span>
+                    </div>
+                    {% else %}
+                    <div
+                        class="h-full w-full border border-green-200 text-green-600 rounded-lg flex items-center justify-center text-[9px] font-bold hover:bg-green-50 transition-colors">
+                        DINNER
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div
+                        class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-50 transition-colors">
+                        <span class="text-[8px] font-bold uppercase">SKIP</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% include "modal_generate.html" %}
+
+<script>
+    function toggleSlot(day, meal, dateStr) {
+        document.getElementById('toggle_day').value = day;
+        document.getElementById('toggle_meal').value = meal;
+        // Keep the original ref_date from the form to prevent view shifting
+        document.getElementById('toggleSlotForm').submit();
+    }
+
+    // Close modals on outside click
+    window.onclick = function (event) {
+        if (event.target == document.getElementById('modelModal')) {
+            closeModelModal();
+        }
+    }
+</script>
+
+{% endblock %}

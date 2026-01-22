@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-16 pb-24">
+    <!-- Header -->
+    <div class="text-center py-12">
+        <div
+            class="inline-block bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest mb-4">
+            Documentation</div>
+        <h1 class="text-5xl font-black text-slate-900 mb-4 tracking-tight">Arby Master Class 👨‍🍳</h1>
+        <p class="text-slate-500 text-lg font-medium max-w-lg mx-auto leading-relaxed">Everything you need to know about
+            your personal AI kitchen orchestrator.</p>
+    </div>
+
+    <!-- Quick Start Guide -->
+    <section id="quick-start"
+        class="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl shadow-slate-200/50 space-y-10">
+        <div class="space-y-2">
+            <h2 class="text-3xl font-black text-slate-900 tracking-tight">Quick Start Guide</h2>
+            <p class="text-slate-400 font-medium">Get up and running in minutes.</p>
+        </div>
+
+        <div class="space-y-12">
+            <!-- Step 1 -->
+            <div class="flex gap-6 group">
+                <div class="flex flex-col items-center">
+                    <div
+                        class="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-blue-200 transition-all">
+                        01</div>
+                    <div class="flex-grow w-0.5 bg-blue-50 mt-4 group-hover:bg-blue-100 transition-colors"></div>
+                </div>
+                <div class="pt-1">
+                    <h3 class="font-black text-slate-800 text-xl mb-2">API Key Setup</h3>
+                    <p class="text-slate-500 leading-relaxed mb-4">Head to <a href="/settings"
+                            class="text-blue-600 font-bold hover:underline">Settings</a>. You have two ways to connect
+                        your AI Chefs:
+                    </p>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div class="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                            <h4 class="text-xs font-black uppercase text-slate-400 mb-2 tracking-widest">Option A:
+                                Direct</h4>
+                            <p class="text-[11px] text-slate-500 leading-tight">Paste your raw API keys directly into
+                                the input fields.</p>
+                        </div>
+                        <div class="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                            <h4 class="text-xs font-black uppercase text-slate-400 mb-2 tracking-widest">Option B:
+                                Pointers</h4>
+                            <p class="text-[11px] text-slate-500 leading-tight">Export keys in your shell (e.g.
+                                <code>export GEMINI_API_KEY="..."</code>) and enter the <strong>variable name</strong>
+                                in settings.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="flex gap-6 group">
+                <div class="flex flex-col items-center">
+                    <div
+                        class="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-blue-200 transition-all">
+                        02</div>
+                    <div class="flex-grow w-0.5 bg-blue-50 mt-4 group-hover:bg-blue-100 transition-colors"></div>
+                </div>
+                <div class="pt-1">
+                    <h3 class="font-black text-slate-800 text-xl mb-2 flex items-center gap-2">Load the Pantry</h3>
+                    <p class="text-slate-500 leading-relaxed">Update your <a href="/inventory"
+                            class="text-blue-600 font-bold hover:underline">Inventory</a> by typing naturally: <i>"I
+                            have 3 chicken breasts, half a bag of spinach, and some heavy cream."</i> Arby will
+                        prioritize using these items in your next plan.</p>
+                </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="flex gap-6 group">
+                <div class="flex flex-col items-center">
+                    <div
+                        class="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-blue-200 transition-all">
+                        03</div>
+                    <div class="flex-grow w-0.5 bg-blue-50 mt-4 group-hover:bg-blue-100 transition-colors"></div>
+                </div>
+                <div class="pt-1">
+                    <h3 class="font-black text-slate-800 text-xl mb-2">Build your Cookbook</h3>
+                    <p class="text-slate-500 leading-relaxed">Arby loves your existing recipes. Go to the <a
+                            href="/cookbook" class="text-blue-600 font-bold hover:underline">Library</a> and click
+                        <strong>Sync PDFs</strong>. The AI Librarian will read your local files and turn them into
+                        digital recipes. You can also manually add secrets from your head at any time.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Step 4 -->
+            <div class="flex gap-6 group">
+                <div class="flex flex-col items-center">
+                    <div
+                        class="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-blue-200 transition-all">
+                        04</div>
+                    <div class="flex-grow w-0.5 bg-blue-50 mt-4 group-hover:bg-blue-100 transition-colors"></div>
+                </div>
+                <div class="pt-1">
+                    <h3 class="font-black text-slate-800 text-xl mb-2">Set the Mood</h3>
+                    <p class="text-slate-500 leading-relaxed">On the homepage, use the <strong>Recipe Ideas</strong>
+                        modal. Tell Arby what you're craving (e.g. "Healthy Mediterranean") or demand a specific recipe
+                        from your library. This guides the generation engine before you even click plan.</p>
+                </div>
+            </div>
+
+            <!-- Step 5 -->
+            <div class="flex gap-6 group">
+                <div class="flex flex-col items-center">
+                    <div
+                        class="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-blue-200 transition-all">
+                        05</div>
+                </div>
+                <div class="pt-1">
+                    <h3 class="font-black text-slate-800 text-xl mb-2 flex items-center gap-2">Plan & Generate</h3>
+                    <p class="text-slate-500 leading-relaxed mb-4">Click <strong>Generate Plan</strong>. Arby will look
+                        at your history, inventory, and library to craft the perfect week. Plans usually include:</p>
+                    <ul class="grid grid-cols-2 gap-3">
+                        <li
+                            class="flex items-center gap-2 text-sm text-slate-600 font-medium bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
+                            <span class="text-blue-500">📚</span> Library Favorites
+                        </li>
+                        <li
+                            class="flex items-center gap-2 text-sm text-slate-600 font-medium bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
+                            <span class="text-blue-500">✨</span> Chef's Specials
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- User Manual -->
+    <section id="user-manual" class="space-y-12">
+        <div class="text-center">
+            <h2 class="text-4xl font-black text-slate-900 mb-2">User Manual</h2>
+            <p class="text-slate-400 font-medium">Deep dive into Arby's advanced features.</p>
+        </div>
+
+        <!-- The AI Kitchen Team -->
+        <div class="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-8 space-y-8">
+            <h3
+                class="text-2xl font-black text-slate-800 flex items-center gap-2 underline decoration-blue-500/20 underline-offset-8">
+                The AI Kitchen Team</h3>
+            <div class="grid md:grid-cols-3 gap-6">
+                <!-- Head Chef -->
+                <div class="space-y-3 bg-indigo-50/50 p-6 rounded-3xl border border-indigo-100/50">
+                    <div
+                        class="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200/50 text-2xl">
+                        👨‍🍳</div>
+                    <h4 class="font-black text-indigo-900 tracking-tight">Head Chef</h4>
+                    <p class="text-[11px] font-bold text-indigo-400 uppercase tracking-widest leading-none">The Planner
+                    </p>
+                    <p class="text-sm text-indigo-900/60 leading-relaxed font-medium">Handles high-level creativity.
+                        Writes recipes, creates meal plans, and understands your cravings.</p>
+                </div>
+                <!-- Sous Chef -->
+                <div class="space-y-3 bg-orange-50/50 p-6 rounded-3xl border border-orange-100/50">
+                    <div
+                        class="w-12 h-12 rounded-2xl bg-orange-600 flex items-center justify-center text-white shadow-lg shadow-orange-200/50 text-2xl">
+                        🔪</div>
+                    <h4 class="font-black text-orange-900 tracking-tight">Sous Chef</h4>
+                    <p class="text-[11px] font-bold text-orange-400 uppercase tracking-widest leading-none">The Utility
+                    </p>
+                    <p class="text-sm text-orange-900/60 leading-relaxed font-medium">Handles structural logic. Parsing
+                        your grocery list and matching inventory items to recipes.</p>
+                </div>
+                <!-- Librarian -->
+                <div class="space-y-3 bg-emerald-50/50 p-6 rounded-3xl border border-emerald-100/50">
+                    <div
+                        class="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-200/50 text-2xl">
+                        📚</div>
+                    <h4 class="font-black text-emerald-900 tracking-tight">Librarian</h4>
+                    <p class="text-[11px] font-bold text-emerald-400 uppercase tracking-widest leading-none">The Scholar
+                    </p>
+                    <p class="text-sm text-emerald-900/60 leading-relaxed font-medium">Specializes in file ingestion.
+                        Converts your PDF cookbooks into digital, searchable data.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cookbook Logic -->
+        <div class="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-8 space-y-8">
+            <div class="flex items-center justify-between">
+                <h3 class="text-2xl font-black text-slate-800 underline decoration-emerald-500/20 underline-offset-8">
+                    Cookbook Library</h3>
+                <span
+                    class="bg-emerald-100 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest tracking-wide leading-tight">Sync
+                    Engine</span>
+            </div>
+
+            <div class="space-y-6">
+                <div>
+                    <h4 class="font-bold text-slate-800 mb-2">How Syncing Works</h4>
+                    <p class="text-slate-500 text-sm leading-relaxed">Arby monitors your <code>PDF_FOLDER</code>
+                        (configured in settings). When you click **Sync PDFs**, it scans for new files. If a file hasn't
+                        been processed, the **Librarian** reads every page and converts it to Arby's standard JSON
+                        format.</p>
+                </div>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                        <h5 class="text-xs font-black uppercase text-slate-400 mb-2 tracking-widest leading-tight">Sync
+                            All</h5>
+                        <p class="text-xs text-slate-500 leading-relaxed font-medium">Processes everything in your
+                            library that isn't already synced.</p>
+                    </div>
+                    <div class="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                        <h5 class="text-xs font-black uppercase text-slate-400 mb-2 tracking-widest leading-tight">
+                            Ignored Files</h5>
+                        <p class="text-xs text-slate-500 leading-relaxed font-medium">Files starting with <code>_</code>
+                            or non-PDF files are ignored by the Librarian.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pantry Intelligence -->
+        <div class="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-8 space-y-8">
+            <div class="flex items-center justify-between">
+                <h3 class="text-2xl font-black text-slate-800 underline decoration-amber-500/20 underline-offset-8">
+                    Pantry Intelligence</h3>
+                <span
+                    class="bg-amber-100 text-amber-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest leading-tight leading-tight">Waste
+                    Prevention</span>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="space-y-4">
+                    <h4 class="font-bold text-slate-800 flex items-center gap-2">
+                        <span class="text-lg">🥕</span> "Check Pantry" Engine
+                    </h4>
+                    <p class="text-slate-500 text-sm leading-relaxed">When Arby generates a meal, it runs a background
+                        check against your inventory. If it finds a match, it marks that ingredient as
+                        <strong>"Available"</strong> on your grocery list, saving you time and preventing over-buying.
+                    </p>
+                </div>
+                <div class="space-y-4">
+                    <h4 class="font-bold text-slate-800 flex items-center gap-2">
+                        <span class="text-lg">🧠</span> Matching Logic
+                    </h4>
+                    <p class="text-slate-500 text-sm leading-relaxed">The Sous Chef handles the "fuzzy matching". It
+                        knows that "3 cloves of garlic" in a recipe is a match if you have "1 bag of garlic bulbs" in
+                        your pantry pantry.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CLI Reference -->
+        <div class="bg-slate-900 rounded-[2rem] p-10 text-white space-y-8 shadow-2xl shadow-slate-900/20">
+            <div class="flex items-center justify-between">
+                <h3 class="text-2xl font-black flex items-center gap-3">
+                    <span
+                        class="bg-slate-800 w-10 h-10 rounded-2xl flex items-center justify-center text-sm border border-slate-700">💻</span>
+                    Arby CLI Reference
+                </h3>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="space-y-4">
+                    <div class="group">
+                        <p
+                            class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-green-500 transition-colors">
+                            Start Background Server</p>
+                        <code class="text-green-400 font-bold">./arby start</code>
+                    </div>
+                    <div class="group">
+                        <p
+                            class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-red-500 transition-colors">
+                            Stop Server</p>
+                        <code class="text-red-400 font-bold">./arby stop</code>
+                    </div>
+                    <div class="group">
+                        <p
+                            class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-blue-500 transition-colors">
+                            Clean Restart</p>
+                        <code class="text-blue-400 font-bold">./arby restart</code>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div class="group">
+                        <p
+                            class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-yellow-500 transition-colors">
+                            Live Health Check</p>
+                        <code class="text-yellow-500 font-bold">./arby check</code>
+                    </div>
+                    <div class="group">
+                        <p
+                            class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-purple-500 transition-colors">
+                            Monitor Logs</p>
+                        <code class="text-purple-400 font-bold">./arby logs</code>
+                    </div>
+                    <div class="group">
+                        <p
+                            class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-slate-400 transition-colors">
+                            Check Status</p>
+                        <code class="text-slate-100 font-bold">./arby status</code>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-6 border-t border-slate-800">
+                <p class="text-xs text-slate-500 italic">Tip: Use <b>./arby check</b> if you suspect any environment
+                    variable or API key issues.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" class="space-y-8">
+        <div class="text-center">
+            <h2 class="text-3xl font-black text-slate-900">Troubleshooting FAQ</h2>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm">
+                <h4 class="font-bold text-slate-800 mb-2">Why is my connection failing?</h4>
+                <p class="text-sm text-slate-500 leading-relaxed">Usually, this is due to an unexported API key. Ensure
+                    you used the <code>export</code> keyword in your shell profile and ran <code>./arby restart</code>.
+                </p>
+            </div>
+            <div class="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm">
+                <h4 class="font-bold text-slate-800 mb-2">How do I fix a corrupted state?</h4>
+                <p class="text-sm text-slate-500 leading-relaxed">If Arby seems "stuck," you can run
+                    <code>python3 app/scripts/init_state.py</code> to reset your configuration files to defaults (be
+                    careful, this won't delete data but will reset settings).
+                </p>
+            </div>
+            <div class="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm">
+                <h4 class="font-bold text-slate-800 mb-2">My PDF won't sync!</h4>
+                <p class="text-sm text-slate-500 leading-relaxed">The Librarian requires <strong>Google Gemini</strong>
+                    for PDF ingestion. Ensure your Google key is active and that the PDF is not password protected.</p>
+            </div>
+            <div class="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm">
+                <h4 class="font-bold text-slate-800 mb-2">Where is my data stored?</h4>
+                <p class="text-sm text-slate-500 leading-relaxed">All your recipes, history, and preferences are stored
+                    locally in the <code>state/</code> folder. Nothing is ever sent to our servers.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <div class="text-center py-12 border-t border-slate-100">
+        <a href="/"
+            class="inline-flex items-center gap-2 bg-slate-900 text-white px-8 py-3 rounded-2xl font-black hover:opacity-90 transition shadow-xl shadow-slate-200">
+            Back to Dashboard
+        </a>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-8 leading-tight">Crafted for better
+            kitchens • Arby v1.0.0</p>
+    </div>
+</div>
+{% endblock %}

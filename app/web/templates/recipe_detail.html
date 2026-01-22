@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="mb-4">
+    <a href="/cookbook" class="text-slate-500 hover:text-slate-800 text-sm">← Back to Library</a>
+</div>
+
+<div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+    <div class="p-6 md:p-8">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+            <div>
+                <span
+                    class="inline-block bg-green-50 text-green-700 text-xs px-2 py-1 rounded-full uppercase tracking-wide mb-2">
+                    {{ recipe.category }}
+                </span>
+                <h1 class="text-3xl font-bold text-slate-800">{{ recipe.name }}</h1>
+            </div>
+            <div class="flex space-x-2 mt-4 md:mt-0">
+                {% if recipe.filename %}
+                <a href="/cookbook/pdf/{{ recipe.filename }}" target="_blank"
+                    class="bg-red-50 text-red-600 px-4 py-2 rounded-lg font-medium hover:bg-red-100 transition">
+                    View Original PDF
+                </a>
+                {% endif %}
+                <a href="/cookbook/edit/{{ recipe.id }}"
+                    class="bg-slate-100 text-slate-600 px-4 py-2 rounded-lg font-medium hover:bg-slate-200 transition">
+                    Edit
+                </a>
+                <form action="/cookbook/delete/{{ recipe.id }}" method="POST"
+                    onsubmit="return confirm('Delete this recipe? This cannot be undone.');">
+                    <button type="submit"
+                        class="bg-white border border-red-200 text-red-500 px-4 py-2 rounded-lg font-medium hover:bg-red-50 transition">
+                        Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-8">
+            <!-- Ingredients -->
+            <div class="md:col-span-1">
+                <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                    <span
+                        class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mr-2 text-sm">🥕</span>
+                    Ingredients
+                </h2>
+                <ul class="space-y-2">
+                    {% for item in recipe.ingredients %}
+                    <li class="flex items-start">
+                        <span class="text-green-500 mr-2">•</span>
+                        <span class="text-slate-600">{{ item }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <!-- Instructions -->
+            <div class="md:col-span-2">
+                <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                    <span
+                        class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-2 text-sm">🍳</span>
+                    Instructions
+                </h2>
+                <div class="space-y-4">
+                    {% for step in recipe.instructions %}
+                    <div class="flex">
+                        <span class="font-bold text-slate-300 mr-4">{{ loop.index }}</span>
+                        <p class="text-slate-700 leading-relaxed">{{ step }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
