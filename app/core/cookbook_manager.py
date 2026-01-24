@@ -23,6 +23,7 @@ class Recipe(BaseModel):
     instructions: List[str] = []
     source: str = "manual"  # 'manual', 'pdf', 'arby'
     filename: Optional[str] = None  # Filename if source is pdf
+    rating: int = 0 # 0-5 stars
 
 class CookbookManager:
     def __init__(self, base_dir, config):
@@ -163,10 +164,20 @@ class CookbookManager:
         if not os.path.exists(self.cookbook_file):
             return []
         try:
-            with open(self.cookbook_file, 'r') as f:
+            with open(self.cookbook_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                return data
-        except:
+                
+            validated = []
+            for r in data:
+                try:
+                    # Ensure ID exists for validation
+                    if 'id' not in r: r['id'] = str(uuid.uuid4())
+                    validated.append(Recipe(**r).model_dump())
+                except Exception as e:
+                    print(f"Skipping malformed recipe: {e}")
+            return validated
+        except Exception as e:
+            print(f"Error loading cookbook: {e}")
             return []
 
     def save_recipes(self, recipes: List[dict]):
@@ -200,6 +211,16 @@ class CookbookManager:
                 self.save_recipes(recipes)
                 return recipes[i]
         return None
+
+    def rate_recipe(self, recipe_id, rating: int):
+        recipes = self.load_recipes()
+        for i, r in enumerate(recipes):
+            if r['id'] == recipe_id:
+                recipes[i]['rating'] = rating
+                self.save_recipes(recipes)
+                print(f"DEBUG: Rated recipe {recipe_id} with {rating} stars.")
+                return True
+        return False
 
     def delete_recipe(self, recipe_id):
         recipes = self.load_recipes()

@@ -38,141 +38,18 @@
 
     <!-- Models Tab -->
     <div x-show="tab === 'models'" class="space-y-6">
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-slate-800">AI Chef Keys 🔑</h2>
-                <span
-                    class="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">ACCESS
-                    CONTROL</span>
-            </div>
-            <p class="text-slate-500 text-sm mb-6">
-                Enter your **API Keys** or the **Name of an Environment Variable** containing the key. Arby will
-                automatically resolve them.
-            </p>
-
-            <form method="POST">
-                <!-- Google Gemini -->
-                <div class="mb-6">
-                    <div class="flex justify-between items-center mb-2">
-                        <label class="block text-sm font-semibold text-slate-700">Google Gemini API Key</label>
-                        <div class="flex items-center gap-2">
-                            {% if display_keys.gemini.status %}
-                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
-                                display_keys.gemini.status }}</span>
-                            {% endif %}
-                            {% if display_keys.gemini.active %}
-                            <span
-                                class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
-                            {% else %}
-                            <span
-                                class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">MISSING</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <input type="{% if display_keys.gemini.val == '***' %}password{% else %}text{% endif %}"
-                        name="gemini_key" placeholder="e.g. GEMINI_API_KEY or AIzam..."
-                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                        value="{{ display_keys.gemini.val }}">
-                    <p class="text-xs text-slate-400 mt-1">Recommended. Handles PDF cookbooks and advanced logic.
-                    </p>
-                </div>
-
-                <!-- OpenAI -->
-                <div class="mb-6">
-                    <div class="flex justify-between items-center mb-2">
-                        <label class="block text-sm font-semibold text-slate-700">OpenAI API Key</label>
-                        <div class="flex items-center gap-2">
-                            {% if display_keys.openai.status %}
-                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
-                                display_keys.openai.status }}</span>
-                            {% endif %}
-                            {% if display_keys.openai.active %}
-                            <span
-                                class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
-                            {% else %}
-                            <span
-                                class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">LOCKED</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <input type="{% if display_keys.openai.val == '***' %}password{% else %}text{% endif %}"
-                        name="openai_key" placeholder="e.g. OPENAI_API_KEY or sk-..."
-                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono text-sm"
-                        value="{{ display_keys.openai.val }}">
-                    <p class="text-xs text-slate-400 mt-1">Unlocks GPT-4o and o1-mini.</p>
-                </div>
-
-                <!-- Anthropic -->
-                <div class="mb-6">
-                    <div class="flex justify-between items-center mb-2">
-                        <label class="block text-sm font-semibold text-slate-700">Anthropic API Key</label>
-                        <div class="flex items-center gap-2">
-                            {% if display_keys.anthropic.status %}
-                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
-                                display_keys.anthropic.status }}</span>
-                            {% endif %}
-                            {% if display_keys.anthropic.active %}
-                            <span
-                                class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
-                            {% else %}
-                            <span
-                                class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">LOCKED</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <input type="{% if display_keys.anthropic.val == '***' %}password{% else %}text{% endif %}"
-                        name="anthropic_key" placeholder="e.g. ANTHROPIC_API_KEY or sk-ant-..."
-                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
-                        value="{{ display_keys.anthropic.val }}">
-                    <p class="text-xs text-slate-400 mt-1">Unlocks Claude 3.5 Sonnet & Haiku.</p>
-                </div>
-
-                <!-- xAI -->
-                <div class="mb-6">
-                    <div class="flex justify-between items-center mb-2">
-                        <label class="block text-sm font-semibold text-slate-700">xAI (Grok) API Key</label>
-                        <div class="flex items-center gap-2">
-                            {% if display_keys.xai.status %}
-                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
-                                display_keys.xai.status }}</span>
-                            {% endif %}
-                            {% if display_keys.xai.active %}
-                            <span
-                                class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
-                            {% else %}
-                            <span
-                                class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">LOCKED</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <input type="{% if display_keys.xai.val == '***' %}password{% else %}text{% endif %}" name="xai_key"
-                        placeholder="e.g. XAI_API_KEY or xai-..."
-                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-500 font-mono text-sm"
-                        value="{{ display_keys.xai.val }}">
-                    <p class="text-xs text-slate-400 mt-1">Unlocks Grok Beta.</p>
-                </div>
-
-                <div class="pt-4 border-t border-slate-100 flex justify-end">
-                    <button type="submit"
-                        class="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:opacity-90 transition shadow-lg">
-                        Save Keys & Unlock Providers
-                    </button>
-                </div>
-            </form>
-        </div>
-
-
 
         <!-- Select Head Chef (Creative) -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-slate-800">Default Head Chef 👨‍🍳</h2>
+                <h2 class="text-lg font-bold text-slate-800">Head Chef 👨‍🍳</h2>
                 <span
                     class="text-[10px] bg-purple-50 text-purple-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Primary
                     Role</span>
             </div>
             <p class="text-slate-500 text-sm mb-4">
-                The Head Chef is your creative partner for generating recipes and meal plans.
+                The Head Chef is your creative partner for generating recipes and meal plans. A different head chef
+                model can still be selected during meal plan recipe generation.
             </p>
 
             <form action="/settings/core_model" method="POST" class="flex gap-4">
@@ -196,7 +73,7 @@
         <!-- Select Sous Chef (Utility) -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-slate-800">Default Sous Chef 🔪</h2>
+                <h2 class="text-lg font-bold text-slate-800">Sous Chef 🔪</h2>
                 <span
                     class="text-[10px] bg-orange-50 text-orange-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Utility
                     Role</span>
@@ -225,7 +102,7 @@
         <!-- Select Librarian (PDF Ingestion) -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-slate-800">Default Librarian 📚</h2>
+                <h2 class="text-lg font-bold text-slate-800">Librarian 📚</h2>
                 <span
                     class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Ingestion
                     Role</span>
@@ -497,6 +374,130 @@
                             class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <p class="text-[10px] text-slate-400 mt-1">Leave blank to use default OpenAI Key</p>
                     </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- API Keys -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-slate-800">AI Chef Keys 🔑</h2>
+                <span
+                    class="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">ACCESS
+                    CONTROL</span>
+            </div>
+            <p class="text-slate-500 text-sm mb-6">
+                Enter your **API Keys** or the **Name of an Environment Variable** containing the key. Arby will
+                automatically resolve them.
+            </p>
+
+            <form method="POST">
+                <!-- Google Gemini -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-semibold text-slate-700">Google Gemini API Key</label>
+                        <div class="flex items-center gap-2">
+                            {% if display_keys.gemini.status %}
+                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
+                                display_keys.gemini.status }}</span>
+                            {% endif %}
+                            {% if display_keys.gemini.active %}
+                            <span
+                                class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
+                            {% else %}
+                            <span
+                                class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">MISSING</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <input type="{% if display_keys.gemini.val == '***' %}password{% else %}text{% endif %}"
+                        name="gemini_key" placeholder="e.g. GEMINI_API_KEY or AIzam..."
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                        value="{{ display_keys.gemini.val }}">
+                    <p class="text-xs text-slate-400 mt-1">Recommended. Handles PDF cookbooks and advanced logic.
+                    </p>
+                </div>
+
+                <!-- OpenAI -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-semibold text-slate-700">OpenAI API Key</label>
+                        <div class="flex items-center gap-2">
+                            {% if display_keys.openai.status %}
+                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
+                                display_keys.openai.status }}</span>
+                            {% endif %}
+                            {% if display_keys.openai.active %}
+                            <span
+                                class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
+                            {% else %}
+                            <span
+                                class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">LOCKED</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <input type="{% if display_keys.openai.val == '***' %}password{% else %}text{% endif %}"
+                        name="openai_key" placeholder="e.g. OPENAI_API_KEY or sk-..."
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono text-sm"
+                        value="{{ display_keys.openai.val }}">
+                    <p class="text-xs text-slate-400 mt-1">Unlocks GPT-4o and o1-mini.</p>
+                </div>
+
+                <!-- Anthropic -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-semibold text-slate-700">Anthropic API Key</label>
+                        <div class="flex items-center gap-2">
+                            {% if display_keys.anthropic.status %}
+                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
+                                display_keys.anthropic.status }}</span>
+                            {% endif %}
+                            {% if display_keys.anthropic.active %}
+                            <span
+                                class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
+                            {% else %}
+                            <span
+                                class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">LOCKED</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <input type="{% if display_keys.anthropic.val == '***' %}password{% else %}text{% endif %}"
+                        name="anthropic_key" placeholder="e.g. ANTHROPIC_API_KEY or sk-ant-..."
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
+                        value="{{ display_keys.anthropic.val }}">
+                    <p class="text-xs text-slate-400 mt-1">Unlocks Claude 3.5 Sonnet & Haiku.</p>
+                </div>
+
+                <!-- xAI -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-semibold text-slate-700">xAI (Grok) API Key</label>
+                        <div class="flex items-center gap-2">
+                            {% if display_keys.xai.status %}
+                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
+                                display_keys.xai.status }}</span>
+                            {% endif %}
+                            {% if display_keys.xai.active %}
+                            <span
+                                class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
+                            {% else %}
+                            <span
+                                class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">LOCKED</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <input type="{% if display_keys.xai.val == '***' %}password{% else %}text{% endif %}" name="xai_key"
+                        placeholder="e.g. XAI_API_KEY or xai-..."
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-500 font-mono text-sm"
+                        value="{{ display_keys.xai.val }}">
+                    <p class="text-xs text-slate-400 mt-1">Unlocks Grok Beta.</p>
+                </div>
+
+                <div class="pt-4 border-t border-slate-100 flex justify-end">
+                    <button type="submit"
+                        class="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:opacity-90 transition shadow-lg">
+                        Save Keys & Unlock Providers
+                    </button>
                 </div>
             </form>
         </div>

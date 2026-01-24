@@ -69,8 +69,7 @@
                                             class="text-[10px] bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-md font-bold border border-indigo-100 uppercase tracking-tight">Library</span>
                                         {% else %}
                                         <span
-                                            class="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md font-bold border border-amber-100 uppercase tracking-tight">Chef's
-                                            Special</span>
+                                            class="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md font-bold border border-amber-100 uppercase tracking-tight">Chef's</span>
                                         {% endif %}
                                     </div>
                                 </div>
@@ -132,8 +131,9 @@
                             </div>
                         </div>
                         <div class="bg-slate-50 px-10 py-4 grid grid-cols-3 items-center border-t border-slate-100">
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Arby Assistant</span>
-                            
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Arby
+                                Assistant</span>
+
                             <div class="flex justify-center">
                                 {% if meal.source != 'library' %}
                                 <button onclick="saveMealToCookbook({{ meal | tojson | forceescape }})"

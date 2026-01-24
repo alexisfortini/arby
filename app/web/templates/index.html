@@ -5,7 +5,7 @@
 <!-- Hero Section -->
 <div class="text-center py-4">
     <h1 class="text-4xl font-bold text-slate-800 mb-2">Hello, Chef.</h1>
-    <p class="text-slate-500">Your kitchen assistant is ready.</p>
+    <p class="text-slate-500" id="heroQuote">Your kitchen assistant is ready.</p>
 </div>
 
 <!-- Active Plan Focus -->
@@ -106,14 +106,14 @@
         <div>
             <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Next Date</label>
             <div class="font-bold text-slate-800 text-lg" id="displayStartDate">
-                {% if schedule_enabled %}{{ default_start_date }}{% else %}None{% endif %}
+                {% if schedule_enabled %}{{ default_start_date_pretty }}{% else %}None{% endif %}
             </div>
         </div>
         <div>
             <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Duration</label>
             <div class="font-bold text-slate-800 text-lg">
                 {% if schedule_enabled %}
-                <span id="displayDuration">4</span> Days
+                <span id="displayDuration">{{ duration_days }}</span> Days
                 {% else %}
                 -
                 {% endif %}
@@ -143,22 +143,33 @@
                 class="text-2xl text-slate-400 hover:text-slate-600">&times;</button>
         </div>
         <div class="p-6 space-y-4">
-            <div>
-                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Next Meal Plan
-                    Date</label>
-                <input type="date" id="settingsStartDate" value="{{ default_start_date }}"
-                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <p class="text-[10px] text-slate-400 mt-1">Default: {{ default_start_date }}</p>
-            </div>
+
             <div>
                 <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Duration
                     (Days)</label>
                 <div class="flex items-center gap-2">
-                    <input type="range" id="settingsDurationRange" min="1" max="8" value="4"
+                    <input type="range" id="settingsDurationRange" min="1" max="14" value="{{ duration_days }}"
                         class="flex-grow accent-blue-600"
                         oninput="document.getElementById('settingsDurationDisplay').innerText = this.value">
-                    <span class="font-bold text-slate-800 w-8 text-center" id="settingsDurationDisplay">4</span>
+                    <span class="font-bold text-slate-800 w-8 text-center" id="settingsDurationDisplay">{{ duration_days
+                        }}</span>
                 </div>
+            </div>
+            <div class="pt-4 border-t border-slate-100">
+                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Schedule Run
+                    Day</label>
+                <select id="settingsRunDay"
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {% for d in days_data %}
+                    <option value="{{ d.day }}" {% if run_day==d.day %}selected{% endif %}>{{ d.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Schedule Run
+                    Time</label>
+                <input type="time" id="settingsRunTime" value="{{ run_time }}"
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
         </div>
         <div class="p-6 border-t border-slate-100 flex justify-end">
@@ -174,6 +185,67 @@
 {% include "modal_generate.html" %}
 
 <script>
+    const quotes = [
+        "Your kitchen assistant is ready.",
+        "What’s on the menu today, Chef?",
+        "Let’s make something delicious.",
+        "Mise en place is the secret to a happy soul.",
+        "Cooking is love made visible.",
+        "A clean kitchen is a sign of a wasted life. (Just kidding, let's cook!)",
+        "Pro tip: Don't forget to season the pasta water.",
+        "Your pantry is calling, and it's hungry for a plan.",
+        "Every great meal starts with a single ingredient.",
+        "Chef, the kitchen is yours.",
+        "Let's turn those ingredients into a masterpiece.",
+        "Is it dinner time yet?",
+        "Motivational quote: You are the head chef of your own life.",
+        "Salt, fat, acid, heat... and Arby.",
+        "I've got the plan, you've got the skills.",
+        "\"No one is born a great cook, one learns by doing.\" – Julia Child",
+        "Let's make Julia proud today.",
+        "Your grocery list is looking sharp.",
+        "Remember: Garlic is measured with the heart, not the recipe.",
+        "Time to whip up something magical.",
+        "Keep calm and sauté on.",
+        "The secret ingredient is always a little bit of Arby.",
+        "Life is too short for boring meals.",
+        "Today's forecast: 100% chance of culinary excellence.",
+        "Your kitchen, your rules. I'm just the assistant.",
+        "Let's avoid the takeout temptation tonight.",
+        "Fresh ingredients, fresh ideas.",
+        "A recipe has no soul. You, as the cook, must bring soul to the recipe.",
+        "Sharp knives, full heart, can't lose.",
+        "Don't be afraid to try something new today.",
+        "Your meal plan is your roadmap to a great week.",
+        "Cooking is like painting or writing a song.",
+        "Let's make some memories in the kitchen.",
+        "The only thing I like better than talking about food is eating.",
+        "Is that an avocado or are you just happy to see me?",
+        "Let's keep the apron clean and the flavors bold.",
+        "A pinch of this, a dash of that.",
+        "Your future self will thank you for this meal prep.",
+        "Cooking is the ultimate art form.",
+        "Let's make the neighbors jealous of the smell coming from your kitchen.",
+        "One cannot think well, love well, sleep well, if one has not dined well.",
+        "Good food is the foundation of happiness.",
+        "Let's celebrate life, one meal at a time.",
+        "Your kitchen assistant is sharpening its virtual knives.",
+        "Ready to chop, drop, and roll?",
+        "Cooking is a way to say \"I love you\" to yourself.",
+        "Let's build a better pantry together.",
+        "From farm to table, Arby's got your back.",
+        "Taste as you go, Chef.",
+        "Your kitchen is the heart of the home. Let's keep it beating."
+    ];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const quoteEl = document.getElementById('heroQuote');
+        if (quoteEl) {
+            const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+            quoteEl.innerText = randomQuote;
+        }
+    });
+
     function openIdeasModal() {
         document.getElementById('ideasModal').classList.remove('hidden');
     }
@@ -191,14 +263,29 @@
     }
 
     function savePlanSettings() {
-        // Update Status Card UI
-        const dateVal = document.getElementById('settingsStartDate').value;
+        const runDay = document.getElementById('settingsRunDay').value;
+        const runTime = document.getElementById('settingsRunTime').value;
         const durationVal = document.getElementById('settingsDurationRange').value;
 
-        document.getElementById('displayStartDate').innerText = dateVal ? dateVal : "{{ default_start_date }}";
-        document.getElementById('displayDuration').innerText = durationVal;
-
-        closePlanSettingsModal();
+        fetch('/api/schedule/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                run_day: runDay,
+                run_time: runTime,
+                duration: durationVal
+            })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    // Force refresh to update all displays including next_run string
+                    location.reload();
+                } else {
+                    alert("Error saving settings: " + data.message);
+                }
+            })
+            .catch(err => console.error(err));
     }
 
     function toggleSchedule() {

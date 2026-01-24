@@ -15,9 +15,19 @@
                     {{ recipe.category }}
                 </span>
                 <h1 class="text-3xl font-bold text-slate-800">{{ recipe.name }}</h1>
+                <!-- Rating Widget -->
+                <div class="flex items-center gap-1 mt-2" id="ratingContainer">
+                    {% for i in range(1, 6) %}
+                    <button onclick="rateRecipe('{{ recipe.id }}', {{ i }})"
+                        class="text-2xl transition hover:scale-110 focus:outline-none star-btn" data-value="{{ i }}">
+                        {% if recipe.rating and recipe.rating >= i %}★{% else %}☆{% endif %}
+                    </button>
+                    {% endfor %}
+                    <span class="text-xs text-slate-400 ml-2" id="ratingStatus"></span>
+                </div>
             </div>
             <div class="flex space-x-2 mt-4 md:mt-0">
-                {% if recipe.filename %}
+                {% if recipe.source == 'pdf' and recipe.filename %}
                 <a href="/cookbook/pdf/{{ recipe.filename }}" target="_blank"
                     class="bg-red-50 text-red-600 px-4 py-2 rounded-lg font-medium hover:bg-red-100 transition">
                     View Original PDF
@@ -75,4 +85,52 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function rateRecipe(id, rating) {
+        const btns = document.querySelectorAll('.star-btn');
+        const status = document.getElementById('ratingStatus');
+
+        // Optimistic UI Update
+        btns.forEach(btn => {
+            const val = parseInt(btn.dataset.value);
+            btn.innerHTML = val <= rating ? '★' : '☆';
+            btn.classList.toggle('text-yellow-400', val <= rating);
+            btn.classList.toggle('text-slate-300', val > rating);
+        });
+
+        fetch('/api/cookbook/rate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, rating: rating })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    status.innerText = 'Saved!';
+                    setTimeout(() => status.innerText = '', 2000);
+                } else {
+                    status.innerText = 'Error';
+                }
+            })
+            .catch(err => status.innerText = 'Error');
+    }
+
+    // Init correct colors on load
+    document.addEventListener('DOMContentLoaded', () => {
+        const currentRating = {{ recipe.rating or 0 }};
+        document.querySelectorAll('.star-btn').forEach(btn => {
+            const val = parseInt(btn.dataset.value);
+            if (val <= currentRating) {
+                btn.classList.add('text-yellow-400');
+                btn.innerHTML = '★';
+            } else {
+                btn.classList.add('text-slate-300');
+                btn.innerHTML = '☆';
+            }
+        });
+    });
+</script>
 {% endblock %}

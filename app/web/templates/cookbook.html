@@ -17,7 +17,25 @@
     </div>
 </div>
 
-<div class="mb-6 flex justify-end">
+<div class="mb-6 flex justify-between items-center">
+    <div class="flex bg-white rounded-lg border border-slate-200 p-1">
+        <button onclick="setView('grid')" id="gridBtn"
+            class="p-2 rounded text-slate-400 hover:text-slate-800 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z">
+                </path>
+            </svg>
+        </button>
+        <button onclick="setView('list')" id="listBtn"
+            class="p-2 rounded text-slate-400 hover:text-slate-800 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16">
+                </path>
+            </svg>
+        </button>
+    </div>
+
     <a href="/cookbook/ignored" class="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1">
         <span>🗑️</span> Manage Ignored Files
     </a>
@@ -204,6 +222,64 @@
     }
 </script>
 
+<script>
+    // --- VIEW TOGGLE LOGIC ---
+    function setView(view) {
+        const gridView = document.getElementById('gridView');
+        const listView = document.getElementById('listView');
+        const gridBtn = document.getElementById('gridBtn');
+        const listBtn = document.getElementById('listBtn');
+
+        if (view === 'grid') {
+            gridView.classList.remove('hidden');
+            listView.classList.add('hidden');
+
+            gridBtn.classList.add('bg-slate-100', 'text-slate-800');
+            gridBtn.classList.remove('text-slate-400');
+            listBtn.classList.remove('bg-slate-100', 'text-slate-800');
+            listBtn.classList.add('text-slate-400');
+        } else {
+            gridView.classList.add('hidden');
+            listView.classList.remove('hidden');
+
+            listBtn.classList.add('bg-slate-100', 'text-slate-800');
+            listBtn.classList.remove('text-slate-400');
+            gridBtn.classList.remove('bg-slate-100', 'text-slate-800');
+            gridBtn.classList.add('text-slate-400');
+        }
+        localStorage.setItem('cookbookView', view);
+    }
+
+    // Init View
+    document.addEventListener('DOMContentLoaded', () => {
+        const savedView = localStorage.getItem('cookbookView') || 'grid';
+        setView(savedView);
+    });
+
+    function rateRecipe(id, rating) {
+        // Optimistic UI update
+        const btns = document.querySelectorAll(`.star-btn-${id}`);
+        btns.forEach(btn => {
+            const val = parseInt(btn.dataset.val);
+            if (val <= rating) {
+                btn.classList.remove('text-slate-200');
+                btn.classList.add('text-yellow-400');
+                btn.innerText = '★';
+            } else {
+                btn.classList.remove('text-yellow-400');
+                btn.classList.add('text-slate-200');
+                btn.innerText = '☆';
+            }
+        });
+
+        fetch('/api/cookbook/rate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, rating: rating })
+        }).catch(err => console.error('Error rating recipe:', err));
+    }
+</script>
+
 <!-- Batch Actions Bar (Floating) -->
 <div id="batchBar"
     class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-xl z-50 flex items-center gap-6 hidden transition-all duration-300">
@@ -271,40 +347,64 @@
     </div>
 </dialog>
 
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Grid View -->
+<div id="gridView" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {% for recipe in recipes %}
     <div
-        class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-md transition group relative">
-        <label class="absolute top-4 left-4 z-10 cursor-pointer">
+        class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-md transition group relative flex flex-col h-full">
+        <label class="absolute top-3 right-3 z-10 cursor-pointer">
             <input type="checkbox"
-                class="recipe-checkbox w-5 h-5 rounded border-slate-300 text-green-600 focus:ring-green-500 shadow-sm transition-opacity opacity-0 group-hover:opacity-100 checked:opacity-100"
+                class="recipe-checkbox w-4 h-4 rounded border-slate-300 text-green-600 focus:ring-green-500 shadow-sm transition-opacity opacity-0 group-hover:opacity-100 checked:opacity-100"
                 value="{{ recipe.id }}" onchange="updateSelection()">
         </label>
-        <div class="p-6 pl-12"> <!-- Added padding-left for checkbox space -->
-            <div class="flex justify-between items-start mb-2 gap-2">
-                <div class="flex flex-wrap gap-1">
+        <div class="p-4 flex-grow flex flex-col justify-between"> <!-- Removed pl-10 -->
+            <div>
+                <div class="flex flex-wrap gap-1 mb-3">
                     <span
-                        class="inline-block bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">
+                        class="inline-block bg-slate-100 text-slate-600 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">
                         {{ recipe.category }}
                     </span>
                     <span
-                        class="inline-block bg-blue-50 text-blue-500 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">
+                        class="inline-block bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">
                         {{ recipe.protein }}
                     </span>
                 </div>
-                {% if recipe.source == 'pdf' %}
-                <span
-                    class="inline-block bg-red-50 text-red-500 text-[10px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap">
-                    PDF
-                </span>
-                {% endif %}
+
+                <!-- Rating Display -->
+                <div class="flex items-center gap-0.5 mb-2">
+                    {% for i in range(1, 6) %}
+                    <button onclick="rateRecipe('{{ recipe.id }}', {{ i }})"
+                        class="star-btn-{{ recipe.id }} text-base transition-colors {% if recipe.rating >= i %}text-yellow-400{% else %}text-slate-200{% endif %}"
+                        data-val="{{ i }}">
+                        {% if recipe.rating >= i %}★{% else %}☆{% endif %}
+                    </button>
+                    {% endfor %}
+                </div>
+
+                <h3 class="text-xl font-bold text-slate-800 mb-2 leading-tight tracking-tight">{{ recipe.name }}</h3>
             </div>
 
-            <h3 class="text-lg font-bold text-slate-800 mb-1 leading-snug">{{ recipe.name }}</h3>
-
-            <div class="flex justify-between items-center mt-1">
+            <div class="flex justify-between items-center mt-4 pt-4 border-t border-slate-50">
+                <div>
+                    {% if recipe.source == 'pdf' %}
+                    <span
+                        class="inline-block bg-red-50 text-red-600 text-[10px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap uppercase tracking-wider">
+                        PDF
+                    </span>
+                    {% elif recipe.source == 'chef' or recipe.source == 'arby' %}
+                    <span
+                        class="inline-block bg-amber-50 text-amber-600 text-[10px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap uppercase tracking-wider">
+                        Chef's
+                    </span>
+                    {% elif recipe.source == 'user' or recipe.source == 'manual' %}
+                    <span
+                        class="inline-block bg-green-50 text-green-600 text-[10px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap uppercase tracking-wider border border-green-100">
+                        User
+                    </span>
+                    {% endif %}
+                </div>
                 <a href="/cookbook/view/{{ recipe.id }}"
-                    class="text-green-600 font-medium hover:text-green-700 text-sm">
+                    class="text-green-600 font-bold hover:text-green-700 text-sm flex items-center gap-1 group-hover:translate-x-1 transition-transform">
                     View Recipe →
                 </a>
             </div>
@@ -316,6 +416,82 @@
         <p>No recipes found. Try syncing or adding one!</p>
     </div>
     {% endfor %}
+</div>
+
+<!-- List View -->
+<div id="listView" class="hidden bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 border-b border-slate-200">
+                <tr>
+                    <th class="px-6 py-4 w-12 text-center">
+                        <!-- Batch Select All can go here later -->
+                        ✓
+                    </th>
+                    <th class="px-6 py-4 font-bold text-slate-600 w-1/3">Recipe Name</th>
+                    <th class="px-6 py-4 font-bold text-slate-600 hidden md:table-cell">Rating</th>
+                    <th class="px-6 py-4 font-bold text-slate-600 hidden md:table-cell">Category</th>
+                    <th class="px-6 py-4 font-bold text-slate-600 hidden md:table-cell">Protein</th>
+                    <th class="px-6 py-4 font-bold text-slate-600 hidden sm:table-cell">Source</th>
+                    <th class="px-6 py-4 font-bold text-slate-600 text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for recipe in recipes %}
+                <tr class="hover:bg-slate-50 transition-colors group">
+                    <td class="px-6 py-4 text-center">
+                        <input type="checkbox"
+                            class="recipe-checkbox w-4 h-4 rounded border-slate-300 text-green-600 focus:ring-green-500 shadow-sm cursor-pointer"
+                            value="{{ recipe.id }}" onchange="updateSelection()">
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="font-bold text-slate-800 text-base mb-1">{{ recipe.name }}</div>
+                        <!-- Mobile-only meta -->
+                        <div class="md:hidden flex flex-wrap gap-2 text-xs text-slate-400 mt-1">
+                            <span>{{ recipe.category }}</span>
+                            <span>•</span>
+                            <span>{{ recipe.protein }}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 hidden md:table-cell">
+                        <div class="flex items-center gap-0.5">
+                            {% for i in range(1, 6) %}
+                            <button onclick="rateRecipe('{{ recipe.id }}', {{ i }})"
+                                class="star-btn-{{ recipe.id }} text-base transition-colors {% if recipe.rating >= i %}text-yellow-400{% else %}text-slate-200{% endif %}"
+                                data-val="{{ i }}">
+                                {% if recipe.rating >= i %}★{% else %}☆{% endif %}
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 hidden md:table-cell">
+                        <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-lg font-semibold">{{
+                            recipe.category }}</span>
+                    </td>
+                    <td class="px-6 py-4 hidden md:table-cell">
+                        <span class="bg-blue-50 text-blue-600 text-xs px-2 py-1 rounded-lg font-semibold">{{
+                            recipe.protein }}</span>
+                    </td>
+                    <td class="px-6 py-4 hidden sm:table-cell">
+                        {% if recipe.source == 'pdf' %}
+                        <span class="text-red-500 font-bold text-xs uppercase tracking-wide">PDF</span>
+                        {% elif recipe.source == 'chef' or recipe.source == 'arby' %}
+                        <span class="text-amber-600 font-bold text-xs uppercase tracking-wide">Chef's</span>
+                        {% elif recipe.source == 'user' or recipe.source == 'manual' %}
+                        <span class="text-green-600 font-bold text-xs uppercase tracking-wide">User</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="/cookbook/view/{{ recipe.id }}"
+                            class="text-slate-400 hover:text-green-600 transition-colors font-semibold">
+                            Details
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 
 {% endblock %}

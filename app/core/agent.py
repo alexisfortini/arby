@@ -38,13 +38,32 @@ class ArbyAgent:
                 return json.load(f)
         return []
 
-    def save_history(self, new_plan_summary):
+    def save_history(self, plan_dict):
         history = self.load_history()
+        
+        # Extract meals and ratings
+        meals_executed = []
+        for day in plan_dict.get('days', []):
+            for mt in ['breakfast', 'lunch', 'dinner']:
+                m = day.get(mt)
+                if m:
+                    meals_executed.append({
+                        "name": m['name'],
+                        "rating": m.get('rating', 0),
+                        "source": m.get('source', 'chef')
+                    })
+
         entry = {
             "date": datetime.now().strftime("%Y-%m-%d"),
-            "summary": new_plan_summary
+            "summary": plan_dict.get('summary_message', ''),
+            "meals": meals_executed
         }
         history.append(entry)
+        
+        # Keep history manageable (e.g. last 100 plans)
+        if len(history) > 100:
+            history = history[-100:]
+            
         with open(self.history_file, 'w') as f:
             json.dump(history, f, indent=4)
 
@@ -117,8 +136,11 @@ class ArbyAgent:
             try:
                 with open(self.cookbook_file, 'r') as f:
                     cookbook_data = json.load(f)
-                    # Provide a condensed list of available recipes to the chef
-                    recipes_list = [f"- {r['name']} ({r.get('protein', 'Veg')})" for r in cookbook_data]
+                    # Provide a condensed list of available recipes to the chef with ratings
+                    recipes_list = []
+                    for r in cookbook_data:
+                        rating_str = f" ({r.get('rating')} stars)" if r.get('rating') and r.get('rating') > 0 else ""
+                        recipes_list.append(f"- {r['name']}{rating_str} ({r.get('protein', 'Veg')})")
                     cookbook_summary = "\n".join(recipes_list[:50]) # Limit to 50 for prompt size
             except:
                 cookbook_summary = "Error loading cookbook library."
@@ -145,10 +167,10 @@ class ArbyAgent:
         
         CONSTRAINTS:
         1. Only fill the meal slots (Breakfast/Lunch/Dinner) requested by the user for each date.
-        2. Use or take inspiration from recipes in the Cookbook Library (provided below) if they fit the schedule and inventory. If you use a library recipe, you can adjust quantities to fit the requested servings.
-        3. Take the User Ideas for the plan into account when planning the meals (provided below).
+        2. Take inspiration from recipes in the Cookbook Library (provided below) if they fit the schedule and inventory. If you use a library recipe, you can adjust quantities to fit the requested servings.
+        3. Obey the User Ideas (provided below) for the plan into account when planning the meals.
         4. Prioritize using Inventory items (provided below).
-        5. Learn what the user likes based on the Recent History (provided below). However, do not repeat the same recipes too often.
+        5. Learn what the user likes based on the Recent History and Cookbook Ratings. Favor recipes with 4 or 5 stars. If a recipe has a low rating (1 or 2 stars), avoid using it unless specifically asked. Do not repeat the same recipes too often.
         """
         
         user_prompt = f"""
@@ -265,8 +287,7 @@ class ArbyAgent:
         self.calendar_manager.update_calendar(calendar_update)
         
         # Save History
-        full_text_summary = f"{plan_dict['summary_message']}\n\n**Shopping List:**\n" + "\n".join([f"- {i}" for i in plan_dict['shopping_list']])
-        self.save_history(full_text_summary)
+        self.save_history(plan_dict)
         
         # 9. Email
         print("Sending Email...")

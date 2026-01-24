@@ -1,6 +1,6 @@
 import os
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 
 class CalendarManager:
     def __init__(self, base_dir):
@@ -50,18 +50,56 @@ class CalendarManager:
             "duration_days": 8,
             "schedule_enabled": True,
             "schedule": {d: {"breakfast": True, "lunch": True, "dinner": True} for d in days},
-            "view_mode": "work_week"
+            "view_mode": "work_week",
+            "run_day": "Sunday",
+            "run_time": "10:00"
         }
     
     def save_config(self, config):
         with open(self.config_file, 'w') as f:
             json.dump(config, f, indent=4)
 
-    def get_days_for_view(self, ref_date, view_mode):
+    def get_next_run_dt(self):
+        """Calculates the next run datetime based on current config."""
+        try:
+            config = self.load_config()
+            run_day = config.get('run_day', 'Sunday').strip().title()
+            run_time = config.get('run_time', '10:00')
+            
+            days_map = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+            if run_day not in days_map:
+                # Fallback to current config behavior (Monday) if invalid
+                run_day = "Monday"
+                
+            target_day_idx = days_map.index(run_day)
+            
+            now = datetime.now()
+            current_day_idx = now.weekday()
+            
+            days_ahead = target_day_idx - current_day_idx
+            if days_ahead < 0:
+                days_ahead += 7
+                
+            next_run_date = now.date() + timedelta(days=days_ahead)
+            h, m = map(int, run_time.split(':'))
+            next_run_dt = datetime.combine(next_run_date, dt_time(h, m))
+            
+            # For the purpose of the planning horizon, if today is the Run Day, we start today.
+            # We only jump to next week if the target day is strictly in the past of the current week.
+            # (days_ahead < 0 already handled this by adding 7)
+            # This ensures that on Friday (Run Day), Friday stays green all day.
+            
+            return next_run_dt
+        except Exception as e:
+            print(f"CalendarManager Error: Failed to calculate next run: {e}")
+            return None
+
+    def get_days_for_view(self, ref_date, view_mode, next_run_dt=None):
         """
         Generates a list of day objects for the requested view mode.
         ref_date: datetime.date or datetime.datetime
         view_mode: str ('month', 'week', 'work_week', '3day', 'day')
+        next_run_dt: datetime.datetime or None
         """
         import calendar
         
@@ -76,31 +114,44 @@ class CalendarManager:
         # Load events
         events = self.load_calendar()
         
-        # Determine Plan Window (Visual only, based on today)
+        # Determine Plan Window (Visual only, based on today or next_run)
         config = self.load_config()
-        duration = config.get('duration_days', 7)
-        start_plan = today + timedelta(days=1)
-        plan_window_dates = [ (start_plan + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(duration) ]
+        duration = config.get('duration_days', 8)
+        
+        if config.get('schedule_enabled', True):
+            # If next_run_dt is not provided, calculate it from config
+            if not next_run_dt:
+                next_run_dt = self.get_next_run_dt()
+                
+            if next_run_dt:
+                start_plan = next_run_dt.date()
+            else:
+                # Fallback to tomorrow if everything fails
+                start_plan = today + timedelta(days=1)
+                
+            plan_window_dates = [ (start_plan + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(duration) ]
+        else:
+            plan_window_dates = []
 
         cal = calendar.Calendar(firstweekday=0) # 0 = Monday
         dates_to_show = []
 
         if view_mode == 'month':
-            dates_to_show = list(cal.itermonthdates(year, month))
+            # Rolling 30 days starting from ref_date
+            dates_to_show = [ref_date + timedelta(days=i) for i in range(30)]
         elif view_mode == 'week':
-            # Normalize to Monday
-            start_of_week = ref_date - timedelta(days=ref_date.weekday())
-            dates_to_show = [start_of_week + timedelta(days=i) for i in range(7)]
+            # Rolling 7 days starting from ref_date
+            dates_to_show = [ref_date + timedelta(days=i) for i in range(7)]
         elif view_mode == 'work_week':
-            # Normalize to Monday
-            start_of_week = ref_date - timedelta(days=ref_date.weekday())
-            dates_to_show = [start_of_week + timedelta(days=i) for i in range(5)]
+            # Rolling 5 days starting from ref_date
+            dates_to_show = [ref_date + timedelta(days=i) for i in range(5)]
         elif view_mode == '3day':
             dates_to_show = [ref_date + timedelta(days=i) for i in range(3)]
         elif view_mode == 'day':
             dates_to_show = [ref_date]
         else:
-            dates_to_show = list(cal.itermonthdates(year, month))
+            # Default to rolling 30 days
+            dates_to_show = [ref_date + timedelta(days=i) for i in range(30)]
 
         calendar_days = []
         for date_obj in dates_to_show:

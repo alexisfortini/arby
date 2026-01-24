@@ -1,14 +1,32 @@
 import os
 import json
 import sys
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time as dt_time
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from dotenv import load_dotenv
 import re
 import threading
 import schedule
+import schedule
 import time
+import subprocess
 
+# ... imports ...
+
+@app.context_processor
+def inject_version():
+    try:
+        # Check for modifications
+        status = subprocess.check_output(['git', 'status', '--porcelain'], stderr=subprocess.DEVNULL).decode('utf-8').strip()
+        if status:
+            git_hash = "modified"
+        else:
+            # Get short hash
+            git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'], stderr=subprocess.DEVNULL).decode('utf-8').strip()
+    except:
+        git_hash = "local"
+        
+    return dict(app_version="v1.0.1", git_hash=git_hash)
 # CAPTURE ORIGINAL SYSTEM ENVIRONMENT before load_dotenv shadows it
 original_env = os.environ.copy()
 
@@ -45,16 +63,37 @@ def schedule_runner():
         schedule.run_pending()
         time.sleep(60)
 
-# Default: Run every Sunday at 10 AM
-schedule.every().sunday.at("10:00").do(run_agent_job)
+def init_scheduler():
+    """Initializes or re-initializes the schedule based on config."""
+    schedule.clear()
+    config = agent.calendar_manager.load_config()
+    run_day = config.get('run_day', 'Sunday').lower()
+    run_time = config.get('run_time', '10:00')
+    
+    # Map day names to schedule methods
+    day_map = {
+        "monday": schedule.every().monday,
+        "tuesday": schedule.every().tuesday,
+        "wednesday": schedule.every().wednesday,
+        "thursday": schedule.every().thursday,
+        "friday": schedule.every().friday,
+        "saturday": schedule.every().saturday,
+        "sunday": schedule.every().sunday
+    }
+    
+    job_builder = day_map.get(run_day, schedule.every().sunday)
+    job_builder.at(run_time).do(run_agent_job)
+    print(f"Scheduler initialized: Every {run_day.capitalize()} at {run_time}")
+
+init_scheduler()
 threading.Thread(target=schedule_runner, daemon=True).start()
 
-# --- HELPER ---
+# Helper for display
 def format_date_suffix(dt):
     if not dt: return "Not Scheduled"
     suffix = "th" if 11 <= dt.day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(dt.day % 10, "th")
-    # %p usually returns AM/PM, so we manually lowercase it
-    return dt.strftime(f"%A, %B {dt.day}{suffix}, %Y at %I:%M%p").replace("AM", "am").replace("PM", "pm")
+    # %p returns AM/PM, using abbreviated month for space
+    return dt.strftime(f"%A, %b {dt.day}{suffix} at %I:%M %p").replace("AM", "am").replace("PM", "pm")
 
 # --- ROUTES ---
 @app.route('/')
@@ -64,9 +103,9 @@ def index():
     schedule_enabled = config.get('schedule_enabled', True)
 
     # Pass necessary data to dashboard
-    if schedule_enabled:
-        next_run = schedule.next_run()
-        next_run_str = format_date_suffix(next_run)
+    next_run_dt = agent.calendar_manager.get_next_run_dt()
+    if schedule_enabled and next_run_dt:
+        next_run_str = format_date_suffix(next_run_dt)
     else:
         next_run_str = "None"
     
@@ -99,11 +138,27 @@ def index():
     if not current_model:
          current_model = next((m for m in available_models if not m.get('locked')), None)
 
+    # Identifiers for next 14 days (for settings select labels)
+    days_data = []
+    base = datetime.now()
+    for i in range(14):
+        d = base + timedelta(days=i)
+        days_data.append({
+            "day": d.strftime("%A"),
+            "label": f"{d.strftime('%A')} ({d.strftime('%b %d')})"
+        })
+
     # Default Start Date Logic
     # We still calculate this for the generate modal even if auto-schedule is off
-    next_run_ref = schedule.next_run() if schedule_enabled else datetime.now()
+    next_run_ref = next_run_dt
+    if not next_run_ref:
+        next_run_ref = datetime.now()
+        
+    next_run_str = format_date_suffix(next_run_ref) if config.get('schedule_enabled', True) else "Not Scheduled"
+    
     default_start = agent.calendar_manager.get_default_start_date(next_run_ref)
     default_start_iso = default_start.strftime("%Y-%m-%d")
+    default_start_pretty = default_start.strftime("%a, %b %d")
 
     # Check for active plan
     active_plan_exists = os.path.exists(os.path.join(agent.state_dir, 'active_plan.json'))
@@ -116,7 +171,12 @@ def index():
                            current_model=current_model,
                            default_start_date=default_start_iso,
                            schedule_enabled=schedule_enabled,
-                           active_plan_exists=active_plan_exists)
+                           active_plan_exists=active_plan_exists,
+                           run_day=config.get('run_day', 'Sunday'),
+                           run_time=config.get('run_time', '10:00'),
+                           duration_days=config.get('duration_days', 8),
+                           days_data=days_data,
+                           default_start_date_pretty=default_start_pretty)
 
 @app.route('/health')
 def health_check():
@@ -579,6 +639,21 @@ def view_active_plan():
     with open(active_path, 'r') as f:
         plan = json.load(f)
         
+    # Enrich plan with current cookbook ratings
+    recipes = cookbook_manager.load_recipes()
+    recipe_map = {r['name'].lower(): r for r in recipes}
+    
+    for day in plan.get('days', []):
+        for mt in ['breakfast', 'lunch', 'dinner']:
+            meal = day.get(mt)
+            if meal and meal.get('name'):
+                match = recipe_map.get(meal['name'].lower())
+                if match:
+                    meal['recipe_id'] = match['id']
+                    # Keep plan rating if already set, else use library rating
+                    if 'rating' not in meal:
+                        meal['rating'] = match.get('rating', 0)
+    
     return render_template('view_plan.html', plan=plan, title="Meal Plan")
 
 @app.route('/plan/grocery')
@@ -958,7 +1033,7 @@ def add_recipe():
             "protein": request.form.get('protein'),
             "ingredients": request.form.get('ingredients').split('\n'),
             "instructions": request.form.get('instructions').split('\n'),
-            "source": "manual"
+            "source": request.form.get('source', 'user')
         }
         cookbook_manager.add_recipe(recipe_data)
         flash("Recipe added!", "success")
@@ -974,7 +1049,8 @@ def edit_recipe(recipe_id):
             "category": request.form.get('category'),
             "protein": request.form.get('protein'),
             "ingredients": request.form.get('ingredients').split('\n'),
-            "instructions": request.form.get('instructions').split('\n')
+            "instructions": request.form.get('instructions').split('\n'),
+            "source": request.form.get('source')
         }
         cookbook_manager.update_recipe(recipe_id, updates)
         flash("Recipe updated!", "success")
@@ -1029,10 +1105,28 @@ def save_from_plan_api():
             "instructions": data.get('instructions', []),
             "category": data.get('category', 'Main'),
             "protein": data.get('protein', 'Vegetarian'),
-            "source": "arby"
+            "source": "chef"
         }
         recipe = cookbook_manager.add_recipe(recipe_data)
         return jsonify({"status": "ok", "message": f"Saved {recipe.name} to cookbook!", "id": recipe.id})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/cookbook/rate', methods=['POST'])
+def rate_recipe_endpoint():
+    data = request.json
+    if not data or not data.get('id') or data.get('rating') is None:
+        return jsonify({"status": "error", "message": "Missing id or rating"}), 400
+        
+    try:
+        rating = int(data.get('rating'))
+        if rating < 0 or rating > 5:
+             return jsonify({"status": "error", "message": "Rating must be 0-5"}), 400
+             
+        if cookbook_manager.rate_recipe(data.get('id'), rating):
+            return jsonify({"status": "ok", "message": "Rated!"})
+        else:
+             return jsonify({"status": "error", "message": "Recipe not found"}), 404
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -1055,7 +1149,7 @@ def save_from_plan_form():
             "instructions": instructions,
             "category": request.form.get('category', 'Main'),
             "protein": request.form.get('protein', 'Vegetarian'),
-            "source": "arby"
+            "source": "chef"
         }
         cookbook_manager.add_recipe(recipe_data)
         flash(f"Saved {name} to your Cookbook!", "success")
@@ -1064,15 +1158,45 @@ def save_from_plan_form():
         
     return redirect(request.referrer or '/cookbook')
 
-from app.core.calendar_manager import CalendarManager
+@app.route('/api/plan/active/rate_meal', methods=['POST'])
+def rate_active_meal():
+    data = request.json
+    date_str = data.get('date')
+    meal_type = data.get('meal_type')
+    rating = int(data.get('rating', 0))
+    
+    active_path = os.path.join(agent.state_dir, 'active_plan.json')
+    if not os.path.exists(active_path):
+        return jsonify({"status": "error", "message": "No active plan"}), 404
+        
+    try:
+        with open(active_path, 'r') as f:
+            plan = json.load(f)
+            
+        # Update in plan
+        for day in plan.get('days', []):
+            if day['date'] == date_str:
+                meal = day.get(meal_type)
+                if meal:
+                    meal['rating'] = rating
+                    # If it's a library recipe, ALSO update the library!
+                    recipes = cookbook_manager.load_recipes()
+                    match = next((r for r in recipes if r['name'].lower() == meal['name'].lower()), None)
+                    if match:
+                        cookbook_manager.rate_recipe(match['id'], rating)
+        
+        with open(active_path, 'w') as f:
+            json.dump(plan, f, indent=4)
+            
+        return jsonify({"status": "ok"})
+    except Exception as e:
+         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ... imports ...
-
-calendar_manager = CalendarManager(base_dir)
+# calendar_manager = CalendarManager(base_dir) # Consolidated into agent.calendar_manager
 
 # --- COOKBOOK INIT (Must be after calendar_manager) ---
 from app.core.cookbook_manager import CookbookManager
-app_config = calendar_manager.load_config()
+app_config = agent.calendar_manager.load_config()
 cookbook_manager = CookbookManager(base_dir, app_config)
 
 # Run migration on startup
@@ -1272,7 +1396,7 @@ def update_model_cost():
 
 @app.route('/calendar')
 def calendar_page():
-    config = calendar_manager.load_config()
+    config = agent.calendar_manager.load_config()
     
     # Current Reference Date
     today = datetime.now()
@@ -1291,23 +1415,24 @@ def calendar_page():
     # --- VIEW MODE LOGIC ---
     view_mode = request.args.get('view', 'work_week')
 
+    # Get Next Run for Planning Window (Deterministic based on settings)
+    next_run = agent.calendar_manager.get_next_run_dt()
+    
     # Get Data from Manager
-    calendar_days = calendar_manager.get_days_for_view(ref_date, view_mode)
+    calendar_days = agent.calendar_manager.get_days_for_view(ref_date, view_mode, next_run_dt=next_run)
     
     # Navigation Deltas (Simplified Logic locally or could be in manager too, but fine here)
     if view_mode == 'month':
-        if month == 12:
-            next_date = datetime(year + 1, 1, 1)
-        else:
-            next_date = datetime(year, month + 1, 1)
-        if month == 1:
-            prev_date = datetime(year - 1, 12, 1)
-        else:
-            prev_date = datetime(year, month - 1, 1)
+        next_date = ref_date + timedelta(days=30)
+        prev_date = ref_date - timedelta(days=30)
             
-    elif view_mode == 'week' or view_mode == 'work_week':
+    elif view_mode == 'week':
         next_date = ref_date + timedelta(days=7)
         prev_date = ref_date - timedelta(days=7)
+
+    elif view_mode == 'work_week':
+        next_date = ref_date + timedelta(days=5)
+        prev_date = ref_date - timedelta(days=5)
         
     elif view_mode == '3day':
         next_date = ref_date + timedelta(days=3)
@@ -1328,6 +1453,16 @@ def calendar_page():
     default_start = agent.calendar_manager.get_default_start_date()
     default_start_iso = default_start.strftime("%Y-%m-%d")
 
+    # Identifiers for next 14 days (for settings select labels)
+    days_data = []
+    base = datetime.now()
+    for i in range(14):
+        d = base + timedelta(days=i)
+        days_data.append({
+            "day": d.strftime("%A"),
+            "label": f"{d.strftime('%A')} ({d.strftime('%b %d')})"
+        })
+
     # Get Models for Selector (for Generate Plan modal)
     available_models = agent.model_manager.get_available_models()
     current_model = next((m for m in available_models if m.get('is_core')), None)
@@ -1344,15 +1479,23 @@ def calendar_page():
                            today_date=today.strftime("%Y-%m-%d"),
                            calendar_days=calendar_days,
                            config=config,
+                           schedule_enabled=config.get('schedule_enabled', True),
                            view_mode=view_mode,
                            default_start_date=default_start_iso,
+                           run_day=config.get('run_day', 'Sunday'),
+                           run_time=config.get('run_time', '10:00'),
+                           duration_days=config.get('duration_days', 8),
+                           next_run=format_date_suffix(next_run) if config.get('schedule_enabled', True) and next_run else "OFF",
+                           days_data=days_data,
                            models=available_models,
                            current_model=current_model)
 
 @app.route('/calendar/settings', methods=['POST'])
 def update_settings():
     try:
-        # Load existing defaults to preserve structure
+        # Load existing config to merge
+        config = agent.calendar_manager.load_config()
+        
         new_schedule = {}
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         meals = ["breakfast", "lunch", "dinner"]
@@ -1360,19 +1503,14 @@ def update_settings():
         for day in days:
             new_schedule[day] = {}
             for meal in meals:
-                # Form keys: "schedule[Monday][breakfast]" or just constructing it
-                # HTML form could send unique names like "Monday_breakfast"
-                # Let's check for "Monday_breakfast" in form
                 key = f"{day}_{meal}"
                 new_schedule[day][meal] = (key in request.form)
                 
-        new_config = {
-            "duration_days": int(request.form.get('duration_days', 7)),
-            "schedule": new_schedule,
-            "view_mode": request.form.get('view_mode', 'month')
-        }
+        config["duration_days"] = int(request.form.get('duration_days', config.get('duration_days', 8)))
+        config["schedule"] = new_schedule
+        config["view_mode"] = request.form.get('view_mode', config.get('view_mode', 'month'))
         
-        calendar_manager.save_config(new_config)
+        agent.calendar_manager.save_config(config)
         flash("Schedule settings saved!", "success")
     except Exception as e:
         flash(f"Error saving settings: {e}", "error")
@@ -1388,9 +1526,9 @@ def set_duration():
         view_mode = request.form.get('view_mode', 'month')
         date_str = request.form.get('date') # Preserve focus date
         
-        config = calendar_manager.load_config()
+        config = agent.calendar_manager.load_config()
         config['duration_days'] = duration
-        calendar_manager.save_config(config)
+        agent.calendar_manager.save_config(config)
         
         flash(f"Planning horizon set to {duration} days", "success")
         return redirect(url_for('calendar_page', view=view_mode, date=date_str))
@@ -1421,6 +1559,39 @@ def toggle_slot():
         flash(f"Error toggling slot: {e}", "error")
         return redirect(url_for('calendar_page', view=view_mode))
 
+
+@app.route('/api/schedule/settings', methods=['POST'])
+def api_update_schedule_settings():
+    try:
+        data = request.json
+        run_day = data.get('run_day')
+        run_time = data.get('run_time')
+        
+        if not run_day or not run_time:
+            return jsonify({"status": "error", "message": "Missing run_day or run_time"}), 400
+            
+        config = agent.calendar_manager.load_config()
+        config['run_day'] = run_day
+        config['run_time'] = run_time
+        if data.get('duration'):
+            config['duration_days'] = int(data.get('duration'))
+        agent.calendar_manager.save_config(config)
+        
+        # Re-init scheduler with new settings
+        init_scheduler()
+        
+        # Get new next run time
+        next_run = agent.calendar_manager.get_next_run_dt()
+        next_run_str = format_date_suffix(next_run)
+        
+        return jsonify({
+            "status": "ok", 
+            "next_run": next_run_str,
+            "run_day": run_day,
+            "run_time": run_time
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/schedule/toggle', methods=['POST'])
 def api_toggle_schedule():

@@ -3,66 +3,117 @@
 {% block content %}
 
 <!-- Header & Controls -->
-<div class="flex flex-col space-y-4 mb-6">
-    <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-slate-800">{{ month_name }} {{ year }}</h1>
-
-        <div class="flex items-center space-x-2 bg-white p-1 rounded-full shadow-sm border border-slate-100">
-            <!-- Prev -->
-            <a href="/calendar?date={{ prev_date }}&view={{ view_mode }}"
-                class="p-2 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-600 transition-colors">
-                ◀️
-            </a>
-
-            <!-- Today -->
-            <a href="/calendar?view={{ view_mode }}"
-                class="px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
-                Today
-            </a>
-
-            <!-- Next -->
-            <a href="/calendar?date={{ next_date }}&view={{ view_mode }}"
-                class="p-2 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-600 transition-colors">
-                ▶️
-            </a>
-        </div>
-    </div>
-
-    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-4">
-        <div class="flex justify-between items-center border-b border-slate-50 pb-4">
-            <div class="flex items-center space-x-2">
-                <span class="text-sm font-bold text-slate-800">🎯 Planning Horizon</span>
+<div class="flex flex-col space-y-3 mb-6">
+    <!-- Box 1: Navigation & View Control -->
+    <div
+        class="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <h1 class="text-xl font-bold text-slate-800">{{ month_name }} {{ year }}</h1>
+            <div class="flex items-center bg-slate-50 p-1 rounded-full border border-slate-100 shadow-inner">
+                <!-- Navigation -->
+                <a href="/calendar?date={{ prev_date }}&view={{ view_mode }}"
+                    class="p-1.5 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white hover:shadow-sm text-slate-600 transition-all">
+                    ◀️
+                </a>
+                <a href="/calendar?view={{ view_mode }}"
+                    class="px-3 py-1 text-[10px] font-black uppercase tracking-tighter text-slate-600 hover:bg-white hover:shadow-sm rounded-full transition-all">
+                    Today
+                </a>
+                <a href="/calendar?date={{ next_date }}&view={{ view_mode }}"
+                    class="p-1.5 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white hover:shadow-sm text-slate-600 transition-all">
+                    ▶️
+                </a>
             </div>
-
-            <!-- Generate Button (Opens Modal) -->
-            <button onclick="openModelModal()"
-                class="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl shadow-lg shadow-blue-100 transition-all hover:scale-[1.02] active:scale-[0.98]">
-                <span class="text-xs font-black uppercase tracking-wider">Generate Plan</span>
-                <span class="text-sm">⚡</span>
-            </button>
         </div>
 
-        <!-- View Case -->
-        <div class="flex space-x-1 overflow-x-auto">
-            {% for mode, label in [('day', 'Day'), ('3day', '3 Day'), ('work_week', '5 Day'), ('week', 'Week'),
-            ('month', 'Month')] %}
+        <!-- View Modes -->
+        <div class="flex p-1 bg-slate-50 rounded-xl border border-slate-100 shadow-inner">
+            {% for mode, label in [('day', 'Day'), ('3day', '3D'), ('work_week', '5D'), ('week', 'Week'), ('month',
+            'Month')] %}
             <a href="/calendar?view={{ mode }}&date={{ ref_date }}"
-                class="px-4 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap
-                      {% if view_mode == mode %} bg-slate-900 text-white {% else %} bg-slate-50 text-slate-500 hover:bg-slate-100 {% endif %}">
+                class="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all whitespace-nowrap
+                      {% if view_mode == mode %} bg-white text-blue-600 shadow-sm {% else %} text-slate-400 hover:text-slate-600 {% endif %}">
                 {{ label }}
             </a>
             {% endfor %}
         </div>
     </div>
 
-    <!-- Hidden Toggle Form -->
-    <form id="toggleSlotForm" action="/calendar/toggle_slot" method="POST" class="hidden">
-        <input type="hidden" name="day" id="toggle_day">
-        <input type="hidden" name="meal" id="toggle_meal">
-        <input type="hidden" name="view_mode" value="{{ view_mode }}">
-        <input type="hidden" name="date" value="{{ ref_date }}">
-    </form>
+    <!-- Box 2: Plan Settings & Generation -->
+    <div
+        class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 min-h-[210px] relative flex flex-col justify-center">
+
+        <!-- Auto Run (Top Right) -->
+        <div class="absolute top-4 right-4 flex items-center gap-3">
+            <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest">{{ "Auto ON" if
+                schedule_enabled else "Auto OFF" }}</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="scheduleToggle" class="sr-only peer" {% if schedule_enabled %}checked{% endif
+                    %} onchange="toggleSchedule()">
+                <div
+                    class="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600">
+                </div>
+            </label>
+        </div>
+
+        <!-- Horizon (Top Left) -->
+        <div class="absolute top-4 left-4 flex flex-col gap-1.5">
+            <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Horizon</span>
+            <div class="flex items-center gap-4 bg-slate-100/50 px-4 py-2.5 rounded-xl border border-slate-100">
+                <input type="range" id="calDurationRange" min="1" max="14" value="{{ duration_days }}"
+                    class="w-28 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    oninput="document.getElementById('calDurationDisplay').innerText = this.value"
+                    onchange="saveCalSettings()">
+                <div class="flex items-baseline gap-1 min-w-[40px]">
+                    <span class="text-sm font-black text-slate-800" id="calDurationDisplay">{{ duration_days
+                        }}</span>
+                    <span class="text-[9px] font-bold text-slate-400 uppercase">Days</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Schedule (Bottom Left) -->
+        <div class="absolute bottom-4 left-4 flex flex-col gap-1.5">
+            <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Next Start</span>
+            <div class="flex items-center gap-3 bg-slate-100/50 px-4 py-2.5 rounded-xl border border-slate-100">
+                <select id="calRunDay" onchange="saveCalSettings()"
+                    class="bg-transparent border-none p-0 text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer">
+                    {% for d in days_data %}
+                    <option value="{{ d.day }}" {% if run_day==d.day %}selected{% endif %}>{{ d.label }}</option>
+                    {% endfor %}
+                </select>
+                <span class="text-slate-300 font-light mx-1">|</span>
+                <input type="time" id="calRunTime" value="{{ run_time }}" onchange="saveCalSettings()"
+                    class="bg-transparent border-none p-0 text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer w-[75px]">
+            </div>
+        </div>
+
+        <!-- Action Group (Bottom Right) -->
+        <div class="absolute bottom-4 right-4 flex flex-col items-end gap-1.5 text-right max-w-[200px]">
+            <div class="flex flex-col items-end leading-none mb-1">
+                <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 whitespace-nowrap">Next
+                    Run</span>
+                <span class="text-blue-600 font-black text-xs whitespace-nowrap">{{ next_run }}</span>
+            </div>
+            <button onclick="openModelModal()"
+                class="flex items-center justify-center space-x-3 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl shadow-lg shadow-blue-100 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                <span class="text-[11px] font-black uppercase tracking-[0.15em]">Generate Plan</span>
+                <span class="text-lg">⚡</span>
+            </button>
+        </div>
+    </div>
 </div>
+
+
+
+<!-- Hidden Toggle Form -->
+<form id="toggleSlotForm" action="/calendar/toggle_slot" method="POST" class="hidden">
+    <input type="hidden" name="day" id="toggle_day">
+    <input type="hidden" name="meal" id="toggle_meal">
+    <input type="hidden" name="view_mode" value="{{ view_mode }}">
+    <input type="hidden" name="date" value="{{ ref_date }}">
+</form>
+
 
 <!-- Calendar Grid -->
 {% set grid_cols = 'grid-cols-7' %}
@@ -96,30 +147,31 @@
         {% for day in calendar_days %}
         {% set day_config = config.schedule[day.day_name] %}
 
-        <div class="min-h-[220px] border-b border-r border-slate-100 p-3 relative group transition-colors overflow-hidden
+        <div
+            class="min-h-[220px] border-b border-r border-slate-100 p-3 relative group transition-colors overflow-hidden
                 {% if not day.in_month and view_mode == 'month' %} bg-slate-50/30 {% endif %}
-                {% if day.is_today %} ring-2 ring-inset ring-blue-100 bg-blue-50/10 {% endif %}">
+                {% if day.in_plan_window %} ring-2 ring-inset ring-green-200 bg-green-50/30 {% elif day.is_today %} ring-2 ring-inset ring-blue-100 bg-blue-50/10 {% endif %}">
 
-            <div class="flex justify-between items-center mb-3">
+            <div class="flex items-center mb-3">
                 <span
-                    class="text-sm font-bold {% if day.is_today %} text-blue-600 {% else %} text-slate-700 {% endif %}">
+                    class="text-sm font-bold flex items-center whitespace-nowrap {% if day.in_plan_window %} text-green-700 {% elif day.is_today %} text-blue-600 {% else %} text-slate-700 {% endif %}">
                     {{ day.date_num }}
-                    {% if view_mode != 'month' %}<span class="text-xs font-normal text-slate-400 ml-1">{{ day.day_name
+                    {% if view_mode != 'month' and view_mode != 'week' %}<span
+                        class="text-xs font-normal text-slate-400 ml-1.5">{{ day.day_name
                         }}</span>{% endif %}
                 </span>
-                {% if day.in_plan_window %}
-                <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                {% endif %}
             </div>
 
             <!-- Meal Slots -->
             <div class="space-y-2">
                 <!-- Breakfast -->
-                <div onclick="toggleSlot('{{ day.day_name }}', 'breakfast', '{{ day.date_iso }}')"
-                    class="cursor-pointer group/slot relative h-16">
+                <div {% if day.in_plan_window
+                    %}onclick="toggleSlot('{{ day.day_name }}', 'breakfast', '{{ day.date_iso }}')"
+                    class="cursor-pointer group/slot relative h-16" {% else %} class="relative h-16 pointer-events-none"
+                    {% endif %}>
                     {% if day.content.breakfast %}
-                    {% if day_config.breakfast %}
-                    <!-- ON + FILLED = OVERWRITE -->
+                    {% if day_config.breakfast and day.in_plan_window %}
+                    <!-- ON + FILLED + HORIZON = OVERWRITE -->
                     <div
                         class="h-full w-full px-2 rounded-lg bg-green-500 text-white shadow-md border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
                         <span
@@ -128,41 +180,34 @@
                             day.content.breakfast }}</span>
                     </div>
                     {% else %}
-                    <!-- OFF + FILLED = SAVED (Normal) -->
+                    <!-- SAVED (Normal) -->
                     <div
-                        class="h-full w-full px-2 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                        class="h-full w-full px-2 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all">
                         <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">🍳
                             Breakfast</span>
                         <span class="font-medium leading-tight text-[11px] truncate">{{ day.content.breakfast }}</span>
                     </div>
                     {% endif %}
-                    {% elif day_config.breakfast %}
-                    <!-- Empty Configured Slot -->
-                    {% if day.in_plan_window %}
+                    {% elif day_config.breakfast and day.in_plan_window %}
                     <div
                         class="h-full w-full rounded-lg bg-green-500 text-white shadow-sm flex items-center justify-center transition-all active:scale-95">
                         <span class="text-[10px] font-black tracking-wider">BREAKFAST</span>
                     </div>
                     {% else %}
                     <div
-                        class="h-full w-full border border-green-200 text-green-600 rounded-lg flex items-center justify-center text-[9px] font-bold hover:bg-green-50 transition-colors">
-                        BREAKFAST
-                    </div>
-                    {% endif %}
-                    {% else %}
-                    <!-- Disabled (Grey) -->
-                    <div
-                        class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-50 transition-colors">
-                        <span class="text-[8px] font-bold uppercase">SKIP</span>
+                        class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 transition-colors">
+                        <span class="text-[8px] font-bold uppercase">OFF</span>
                     </div>
                     {% endif %}
                 </div>
 
                 <!-- Lunch -->
-                <div onclick="toggleSlot('{{ day.day_name }}', 'lunch', '{{ day.date_iso }}')"
-                    class="cursor-pointer group/slot relative h-16">
+                <div {% if day.in_plan_window
+                    %}onclick="toggleSlot('{{ day.day_name }}', 'lunch', '{{ day.date_iso }}')"
+                    class="cursor-pointer group/slot relative h-16" {% else %} class="relative h-16 pointer-events-none"
+                    {% endif %}>
                     {% if day.content.lunch %}
-                    {% if day_config.lunch %}
+                    {% if day_config.lunch and day.in_plan_window %}
                     <div
                         class="h-full w-full px-2 rounded-lg bg-green-500 text-white shadow-md border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
                         <span
@@ -172,37 +217,32 @@
                     </div>
                     {% else %}
                     <div
-                        class="h-full w-full px-2 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                        class="h-full w-full px-2 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all">
                         <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">🥗
                             Lunch</span>
                         <span class="font-medium leading-tight text-[11px] truncate">{{ day.content.lunch }}</span>
                     </div>
                     {% endif %}
-                    {% elif day_config.lunch %}
-                    {% if day.in_plan_window %}
+                    {% elif day_config.lunch and day.in_plan_window %}
                     <div
                         class="h-full w-full rounded-lg bg-green-500 text-white shadow-sm flex items-center justify-center transition-all active:scale-95">
                         <span class="text-[10px] font-black tracking-wider">LUNCH</span>
                     </div>
                     {% else %}
                     <div
-                        class="h-full w-full border border-green-200 text-green-600 rounded-lg flex items-center justify-center text-[9px] font-bold hover:bg-green-50 transition-colors">
-                        LUNCH
-                    </div>
-                    {% endif %}
-                    {% else %}
-                    <div
-                        class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-50 transition-colors">
-                        <span class="text-[8px] font-bold uppercase">SKIP</span>
+                        class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 transition-colors">
+                        <span class="text-[8px] font-bold uppercase">OFF</span>
                     </div>
                     {% endif %}
                 </div>
 
                 <!-- Dinner -->
-                <div onclick="toggleSlot('{{ day.day_name }}', 'dinner', '{{ day.date_iso }}')"
-                    class="cursor-pointer group/slot relative h-16">
+                <div {% if day.in_plan_window
+                    %}onclick="toggleSlot('{{ day.day_name }}', 'dinner', '{{ day.date_iso }}')"
+                    class="cursor-pointer group/slot relative h-16" {% else %} class="relative h-16 pointer-events-none"
+                    {% endif %}>
                     {% if day.content.dinner %}
-                    {% if day_config.dinner %}
+                    {% if day_config.dinner and day.in_plan_window %}
                     <div
                         class="h-full w-full px-2 rounded-lg bg-green-500 text-white shadow-md border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
                         <span
@@ -212,28 +252,21 @@
                     </div>
                     {% else %}
                     <div
-                        class="h-full w-full px-2 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
+                        class="h-full w-full px-2 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all">
                         <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">🍽️
                             Dinner</span>
                         <span class="font-medium leading-tight text-[11px] truncate">{{ day.content.dinner }}</span>
                     </div>
                     {% endif %}
-                    {% elif day_config.dinner %}
-                    {% if day.in_plan_window %}
+                    {% elif day_config.dinner and day.in_plan_window %}
                     <div
                         class="h-full w-full rounded-lg bg-green-500 text-white shadow-sm flex items-center justify-center transition-all active:scale-95">
                         <span class="text-[10px] font-black tracking-wider">DINNER</span>
                     </div>
                     {% else %}
                     <div
-                        class="h-full w-full border border-green-200 text-green-600 rounded-lg flex items-center justify-center text-[9px] font-bold hover:bg-green-50 transition-colors">
-                        DINNER
-                    </div>
-                    {% endif %}
-                    {% else %}
-                    <div
-                        class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-50 transition-colors">
-                        <span class="text-[8px] font-bold uppercase">SKIP</span>
+                        class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 transition-colors">
+                        <span class="text-[8px] font-bold uppercase">OFF</span>
                     </div>
                     {% endif %}
                 </div>
@@ -251,6 +284,45 @@
         document.getElementById('toggle_meal').value = meal;
         // Keep the original ref_date from the form to prevent view shifting
         document.getElementById('toggleSlotForm').submit();
+    }
+
+    function saveCalSettings() {
+        const runDay = document.getElementById('calRunDay').value;
+        const runTime = document.getElementById('calRunTime').value;
+        const durationVal = document.getElementById('calDurationRange').value;
+
+        fetch('/api/schedule/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                run_day: runDay,
+                run_time: runTime,
+                duration: durationVal
+            })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    // Force refresh to update planning window etc
+                    location.reload();
+                } else {
+                    alert("Error saving settings: " + data.message);
+                }
+            })
+            .catch(err => console.error(err));
+    }
+
+    function toggleSchedule() {
+        fetch('/api/schedule/toggle', {
+            method: 'POST'
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    location.reload();
+                }
+            })
+            .catch(err => console.error(err));
     }
 
     // Close modals on outside click
