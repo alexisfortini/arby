@@ -1,0 +1,7 @@
+flask
+python-dotenv
+schedule
+markdown
+google-genai
+pydantic
+openai

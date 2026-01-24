@@ -11,22 +11,6 @@ import schedule
 import time
 import subprocess
 
-# ... imports ...
-
-@app.context_processor
-def inject_version():
-    try:
-        # Check for modifications
-        status = subprocess.check_output(['git', 'status', '--porcelain'], stderr=subprocess.DEVNULL).decode('utf-8').strip()
-        if status:
-            git_hash = "modified"
-        else:
-            # Get short hash
-            git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'], stderr=subprocess.DEVNULL).decode('utf-8').strip()
-    except:
-        git_hash = "local"
-        
-    return dict(app_version="v1.0.1", git_hash=git_hash)
 # CAPTURE ORIGINAL SYSTEM ENVIRONMENT before load_dotenv shadows it
 original_env = os.environ.copy()
 
@@ -42,6 +26,22 @@ load_dotenv()
 app = Flask(__name__)
 # Secret key needed for flash messages
 app.secret_key = os.environ.get("FLASK_SECRET", "dev-secret-key-change-me")
+
+@app.context_processor
+def inject_version():
+    try:
+        # Check for modifications
+        status = subprocess.check_output(['git', 'status', '--porcelain'], stderr=subprocess.DEVNULL).decode('utf-8').strip()
+        if status:
+            git_hash = "modified"
+        else:
+            # Get short hash
+            git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'], stderr=subprocess.DEVNULL).decode('utf-8').strip()
+    except:
+        git_hash = "local"
+        
+    return dict(app_version="v1.0.1", git_hash=git_hash)
+
 
 base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
 agent = ArbyAgent(base_dir, original_env=original_env)
@@ -144,7 +144,7 @@ def index():
     for i in range(14):
         d = base + timedelta(days=i)
         days_data.append({
-            "day": d.strftime("%A"),
+            "day": d.strftime("%Y-%m-%d"),
             "label": f"{d.strftime('%A')} ({d.strftime('%b %d')})"
         })
 
@@ -1416,7 +1416,9 @@ def calendar_page():
     view_mode = request.args.get('view', 'work_week')
 
     # Get Next Run for Planning Window (Deterministic based on settings)
+    # Always fetch fresh to ensure the view logic matches the "Next Run" display
     next_run = agent.calendar_manager.get_next_run_dt()
+    print(f"[DEBUG] Calendar Page: next_run={next_run}")
     
     # Get Data from Manager
     calendar_days = agent.calendar_manager.get_days_for_view(ref_date, view_mode, next_run_dt=next_run)
@@ -1459,7 +1461,7 @@ def calendar_page():
     for i in range(14):
         d = base + timedelta(days=i)
         days_data.append({
-            "day": d.strftime("%A"),
+            "day": d.strftime("%Y-%m-%d"),
             "label": f"{d.strftime('%A')} ({d.strftime('%b %d')})"
         })
 

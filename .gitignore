@@ -26,3 +26,6 @@ arby_server.log
 .vscode/
 *.code-workspace
 .idea/
+
+# Validated Scripts
+push_release.sh

@@ -421,69 +421,70 @@
 <!-- List View -->
 <div id="listView" class="hidden bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
     <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm">
-            <thead class="bg-slate-50 border-b border-slate-200">
+        <table class="w-full text-left text-sm table-fixed">
+            <thead class="bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500">
                 <tr>
-                    <th class="px-6 py-4 w-12 text-center">
-                        <!-- Batch Select All can go here later -->
-                        ✓
-                    </th>
-                    <th class="px-6 py-4 font-bold text-slate-600 w-1/3">Recipe Name</th>
-                    <th class="px-6 py-4 font-bold text-slate-600 hidden md:table-cell">Rating</th>
-                    <th class="px-6 py-4 font-bold text-slate-600 hidden md:table-cell">Category</th>
-                    <th class="px-6 py-4 font-bold text-slate-600 hidden md:table-cell">Protein</th>
-                    <th class="px-6 py-4 font-bold text-slate-600 hidden sm:table-cell">Source</th>
-                    <th class="px-6 py-4 font-bold text-slate-600 text-right">Actions</th>
+                    <th class="px-2 py-3 w-8 text-center">✓</th>
+                    <th class="px-2 py-3">Recipe Name</th>
+                    <th class="px-1 py-3 hidden md:table-cell w-20 text-center">Rating</th>
+                    <th class="px-1 py-3 hidden md:table-cell w-24 text-center">Category</th>
+                    <th class="px-1 py-3 hidden md:table-cell w-24 text-center">Protein</th>
+                    <th class="px-1 py-3 hidden sm:table-cell w-16 text-center">Source</th>
+                    <th class="px-2 py-3 text-right w-20">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
                 {% for recipe in recipes %}
                 <tr class="hover:bg-slate-50 transition-colors group">
-                    <td class="px-6 py-4 text-center">
+                    <td class="px-2 py-2 text-center">
                         <input type="checkbox"
                             class="recipe-checkbox w-4 h-4 rounded border-slate-300 text-green-600 focus:ring-green-500 shadow-sm cursor-pointer"
                             value="{{ recipe.id }}" onchange="updateSelection()">
                     </td>
-                    <td class="px-6 py-4">
-                        <div class="font-bold text-slate-800 text-base mb-1">{{ recipe.name }}</div>
+                    <td class="px-4 py-2 min-w-0">
+                        <div
+                            class="font-bold text-slate-800 text-sm leading-tight group-hover:whitespace-normal group-hover:overflow-visible truncate">
+                            {{ recipe.name }}</div>
                         <!-- Mobile-only meta -->
-                        <div class="md:hidden flex flex-wrap gap-2 text-xs text-slate-400 mt-1">
+                        <div class="md:hidden flex flex-wrap gap-2 text-[10px] text-slate-400 mt-0.5">
                             <span>{{ recipe.category }}</span>
                             <span>•</span>
                             <span>{{ recipe.protein }}</span>
                         </div>
                     </td>
-                    <td class="px-6 py-4 hidden md:table-cell">
-                        <div class="flex items-center gap-0.5">
+                    <td class="px-1 py-2 hidden md:table-cell text-center">
+                        <div class="flex items-center justify-center -space-x-1">
                             {% for i in range(1, 6) %}
                             <button onclick="rateRecipe('{{ recipe.id }}', {{ i }})"
-                                class="star-btn-{{ recipe.id }} text-base transition-colors {% if recipe.rating >= i %}text-yellow-400{% else %}text-slate-200{% endif %}"
+                                class="star-btn-{{ recipe.id }} text-sm transition-colors {% if recipe.rating >= i %}text-yellow-400{% else %}text-slate-200{% endif %}"
                                 data-val="{{ i }}">
                                 {% if recipe.rating >= i %}★{% else %}☆{% endif %}
                             </button>
                             {% endfor %}
                         </div>
                     </td>
-                    <td class="px-6 py-4 hidden md:table-cell">
-                        <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-lg font-semibold">{{
+                    <td class="px-1 py-2 hidden md:table-cell text-center">
+                        <span
+                            class="bg-slate-100 text-slate-600 text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider whitespace-nowrap">{{
                             recipe.category }}</span>
                     </td>
-                    <td class="px-6 py-4 hidden md:table-cell">
-                        <span class="bg-blue-50 text-blue-600 text-xs px-2 py-1 rounded-lg font-semibold">{{
+                    <td class="px-1 py-2 hidden md:table-cell text-center">
+                        <span
+                            class="bg-blue-50 text-blue-600 text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider whitespace-nowrap">{{
                             recipe.protein }}</span>
                     </td>
-                    <td class="px-6 py-4 hidden sm:table-cell">
+                    <td class="px-1 py-2 hidden sm:table-cell text-center">
                         {% if recipe.source == 'pdf' %}
-                        <span class="text-red-500 font-bold text-xs uppercase tracking-wide">PDF</span>
+                        <span class="text-red-500 font-bold text-[9px] uppercase tracking-wider">PDF</span>
                         {% elif recipe.source == 'chef' or recipe.source == 'arby' %}
-                        <span class="text-amber-600 font-bold text-xs uppercase tracking-wide">Chef's</span>
+                        <span class="text-amber-600 font-bold text-[9px] uppercase tracking-wider">Chef</span>
                         {% elif recipe.source == 'user' or recipe.source == 'manual' %}
-                        <span class="text-green-600 font-bold text-xs uppercase tracking-wide">User</span>
+                        <span class="text-green-600 font-bold text-[9px] uppercase tracking-wider">User</span>
                         {% endif %}
                     </td>
-                    <td class="px-6 py-4 text-right">
+                    <td class="px-4 py-2 text-right">
                         <a href="/cookbook/view/{{ recipe.id }}"
-                            class="text-slate-400 hover:text-green-600 transition-colors font-semibold">
+                            class="text-green-600 hover:text-green-700 transition-colors font-bold text-xs whitespace-nowrap">
                             Details
                         </a>
                     </td>

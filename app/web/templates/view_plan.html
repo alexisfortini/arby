@@ -107,7 +107,9 @@
                             <div class="flex-grow grid grid-cols-[1fr_80px_100px] items-center gap-4 min-w-0">
                                 <!-- Name + Status -->
                                 <div class="flex items-center gap-2 min-w-0">
-                                    <span class="font-bold text-slate-700 text-lg leading-tight truncate">{{ meal.name
+                                    <span
+                                        class="font-bold text-slate-700 text-lg leading-tight line-clamp-2 text-balance">{{
+                                        meal.name
                                         }}</span>
                                     {% if is_meal_done %}
                                     <span

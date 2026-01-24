@@ -84,7 +84,7 @@
                 </select>
                 <span class="text-slate-300 font-light mx-1">|</span>
                 <input type="time" id="calRunTime" value="{{ run_time }}" onchange="saveCalSettings()"
-                    class="bg-transparent border-none p-0 text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer w-[75px]">
+                    class="bg-transparent border-none p-0 text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer w-[100px]">
             </div>
         </div>
 
@@ -176,22 +176,25 @@
                         class="h-full w-full px-2 rounded-lg bg-green-500 text-white shadow-md border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
                         <span
                             class="text-[8px] font-black uppercase text-green-100 tracking-wider block mb-0.5">Overwrite</span>
-                        <span class="font-medium leading-tight opacity-90 italic text-[11px] truncate">{{
+                        <span
+                            class="font-medium leading-tight opacity-90 italic text-[11px] line-clamp-2 text-balance">{{
                             day.content.breakfast }}</span>
                     </div>
                     {% else %}
                     <!-- SAVED (Normal) -->
                     <div
                         class="h-full w-full px-2 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all">
-                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">🍳
+                        <span
+                            class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5 whitespace-nowrap">🍳
                             Breakfast</span>
-                        <span class="font-medium leading-tight text-[11px] truncate">{{ day.content.breakfast }}</span>
+                        <span class="font-medium leading-tight text-[11px] line-clamp-2 text-balance">{{
+                            day.content.breakfast }}</span>
                     </div>
                     {% endif %}
                     {% elif day_config.breakfast and day.in_plan_window %}
                     <div
                         class="h-full w-full rounded-lg bg-green-500 text-white shadow-sm flex items-center justify-center transition-all active:scale-95">
-                        <span class="text-[10px] font-black tracking-wider">BREAKFAST</span>
+                        <span class="text-[10px] font-black tracking-wider whitespace-nowrap">BREAKFAST</span>
                     </div>
                     {% else %}
                     <div
@@ -212,21 +215,24 @@
                         class="h-full w-full px-2 rounded-lg bg-green-500 text-white shadow-md border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
                         <span
                             class="text-[8px] font-black uppercase text-green-100 tracking-wider block mb-0.5">Overwrite</span>
-                        <span class="font-medium leading-tight opacity-90 italic text-[11px] truncate">{{
+                        <span
+                            class="font-medium leading-tight opacity-90 italic text-[11px] line-clamp-2 text-balance">{{
                             day.content.lunch }}</span>
                     </div>
                     {% else %}
                     <div
                         class="h-full w-full px-2 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all">
-                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">🥗
+                        <span
+                            class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5 whitespace-nowrap">🥗
                             Lunch</span>
-                        <span class="font-medium leading-tight text-[11px] truncate">{{ day.content.lunch }}</span>
+                        <span class="font-medium leading-tight text-[11px] line-clamp-2 text-balance">{{
+                            day.content.lunch }}</span>
                     </div>
                     {% endif %}
                     {% elif day_config.lunch and day.in_plan_window %}
                     <div
                         class="h-full w-full rounded-lg bg-green-500 text-white shadow-sm flex items-center justify-center transition-all active:scale-95">
-                        <span class="text-[10px] font-black tracking-wider">LUNCH</span>
+                        <span class="text-[10px] font-black tracking-wider whitespace-nowrap">LUNCH</span>
                     </div>
                     {% else %}
                     <div
@@ -247,15 +253,18 @@
                         class="h-full w-full px-2 rounded-lg bg-green-500 text-white shadow-md border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
                         <span
                             class="text-[8px] font-black uppercase text-green-100 tracking-wider block mb-0.5">Overwrite</span>
-                        <span class="font-medium leading-tight opacity-90 italic text-[11px] truncate">{{
+                        <span
+                            class="font-medium leading-tight opacity-90 italic text-[11px] line-clamp-2 text-balance">{{
                             day.content.dinner }}</span>
                     </div>
                     {% else %}
                     <div
                         class="h-full w-full px-2 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all">
-                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">🍽️
+                        <span
+                            class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5 whitespace-nowrap">🍽️
                             Dinner</span>
-                        <span class="font-medium leading-tight text-[11px] truncate">{{ day.content.dinner }}</span>
+                        <span class="font-medium leading-tight text-[11px] line-clamp-2 text-balance">{{
+                            day.content.dinner }}</span>
                     </div>
                     {% endif %}
                     {% elif day_config.dinner and day.in_plan_window %}

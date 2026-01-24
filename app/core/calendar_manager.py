@@ -63,26 +63,35 @@ class CalendarManager:
         """Calculates the next run datetime based on current config."""
         try:
             config = self.load_config()
-            run_day = config.get('run_day', 'Sunday').strip().title()
+            run_day = config.get('run_day', 'Sunday').strip()
             run_time = config.get('run_time', '10:00')
             
-            days_map = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-            if run_day not in days_map:
-                # Fallback to current config behavior (Monday) if invalid
-                run_day = "Monday"
+            # --- DATE PARSING LOGIC ---
+            # 1. Try to parse as ISO Date (YYYY-MM-DD)
+            try:
+                next_run_date = datetime.strptime(run_day, "%Y-%m-%d").date()
+                h, m = map(int, run_time.split(':'))
+                return datetime.combine(next_run_date, dt_time(h, m))
+            except ValueError:
+                # 2. Fallback to Day Name Logic
+                run_day = run_day.title()
+                days_map = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+                if run_day not in days_map:
+                    run_day = "Monday"
+                    
+                target_day_idx = days_map.index(run_day)
                 
-            target_day_idx = days_map.index(run_day)
-            
-            now = datetime.now()
-            current_day_idx = now.weekday()
-            
-            days_ahead = target_day_idx - current_day_idx
-            if days_ahead < 0:
-                days_ahead += 7
+                now = datetime.now()
+                current_day_idx = now.weekday()
                 
-            next_run_date = now.date() + timedelta(days=days_ahead)
-            h, m = map(int, run_time.split(':'))
-            next_run_dt = datetime.combine(next_run_date, dt_time(h, m))
+                days_ahead = target_day_idx - current_day_idx
+                if days_ahead < 0:
+                    days_ahead += 7
+                    
+                next_run_date = now.date() + timedelta(days=days_ahead)
+                h, m = map(int, run_time.split(':'))
+                next_run_dt = datetime.combine(next_run_date, dt_time(h, m))
+                return next_run_dt
             
             # For the purpose of the planning horizon, if today is the Run Day, we start today.
             # We only jump to next week if the target day is strictly in the past of the current week.
@@ -125,13 +134,22 @@ class CalendarManager:
                 
             if next_run_dt:
                 start_plan = next_run_dt.date()
+                # If the run time is later today, the window INCLUDES today.
+                # If the run time was earlier today (already passed), we arguably should still
+                # show today as part of the cycle until the next run triggers?
+                # For simplicity/robustness: If the computed next run is today, today is in window.
+                # If computed next run is next week, today is NOT in window.
             else:
                 # Fallback to tomorrow if everything fails
                 start_plan = today + timedelta(days=1)
                 
-            plan_window_dates = [ (start_plan + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(duration) ]
+            # Create set of strings for O(1) lookup
+            plan_window_dates = set(
+                (start_plan + timedelta(days=i)).strftime("%Y-%m-%d") 
+                for i in range(duration)
+            )
         else:
-            plan_window_dates = []
+            plan_window_dates = set()
 
         cal = calendar.Calendar(firstweekday=0) # 0 = Monday
         dates_to_show = []
