@@ -10,6 +10,15 @@
     <div class="mb-6 flex items-center justify-between">
         <h1 class="text-2xl font-bold text-slate-800">Settings</h1>
         <div class="flex items-center gap-4">
+            <a href="/logout" onclick="return confirm('Are you sure you want to sign out?');"
+                class="text-red-500 hover:text-red-700 text-sm font-bold flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
+                    </path>
+                </svg>
+                Sign Out
+            </a>
             <a href="/help" class="text-blue-600 hover:text-blue-700 text-sm font-bold flex items-center gap-1">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -27,12 +36,17 @@
         <button @click="tab = 'models'"
             :class="tab === 'models' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
             class="flex-1 py-2 text-sm font-bold rounded-lg transition-all">
-            Chefs & Models
+            Models
         </button>
         <button @click="tab = 'data'"
             :class="tab === 'data' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
             class="flex-1 py-2 text-sm font-bold rounded-lg transition-all">
-            Data & Privacy
+            Data
+        </button>
+        <button @click="tab = 'system'"
+            :class="tab === 'system' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            class="flex-1 py-2 text-sm font-bold rounded-lg transition-all">
+            System
         </button>
     </div>
 
@@ -521,22 +535,46 @@
             <form action="/settings/preferences" method="POST">
                 <div class="flex flex-col gap-3 mb-8">
                     <!-- Pantry Inventory -->
-                    <label
-                        class="flex items-start gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100 cursor-pointer hover:bg-slate-100 transition group">
+                    <div
+                        class="flex items-start gap-3 p-4 rounded-2xl bg-white border border-slate-100 group shadow-sm">
                         <input type="checkbox" name="use_inventory"
                             class="mt-1 rounded border-slate-300 text-blue-500 focus:ring-blue-500" {% if
                             prefs.data_context.use_inventory %}checked{% endif %}>
-                        <div>
-                            <span
-                                class="block text-sm font-bold text-slate-700 group-hover:text-blue-600 transition">Pantry
-                                Inventory</span>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-center">
+                                <span class="block text-sm font-bold text-slate-700">Pantry
+                                    Inventory</span>
+                                <a href="/inventory"
+                                    class="text-[10px] font-black uppercase text-blue-600 hover:text-blue-800 tracking-widest border border-blue-200 px-2 py-0.5 rounded-lg bg-blue-50/50 hover:bg-blue-100 transition-colors">Edit
+                                    Pantry</a>
+                            </div>
                             <span class="block text-[11px] text-slate-400 leading-tight mt-0.5">Include currently
                                 stocked items to minimize shopping.</span>
                         </div>
-                    </label>
+                    </div>
+
+                    <!-- Cookbook Library -->
+                    <div
+                        class="flex items-start gap-3 p-4 rounded-2xl bg-white border border-slate-100 group shadow-sm">
+                        <input type="checkbox" name="use_cookbook"
+                            class="mt-1 rounded border-slate-300 text-blue-500 focus:ring-blue-500" {% if
+                            prefs.data_context.use_cookbook !=False %}checked{% endif %}>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-center">
+                                <span class="block text-sm font-bold text-slate-700">Cookbook
+                                    Library</span>
+                                <a href="/cookbook"
+                                    class="text-[10px] font-black uppercase text-blue-600 hover:text-blue-800 tracking-widest border border-blue-200 px-2 py-0.5 rounded-lg bg-blue-50/50 hover:bg-blue-100 transition-colors">Edit
+                                    Recipes</a>
+                            </div>
+                            <span class="block text-[11px] text-slate-400 leading-tight mt-0.5">Prioritize recipes
+                                you've saved or imported to your library.</span>
+                        </div>
+                    </div>
 
                     <!-- Cravings & Ideas -->
-                    <div class="flex items-start gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100 group">
+                    <div
+                        class="flex items-start gap-3 p-4 rounded-2xl bg-white border border-slate-100 group shadow-sm">
                         <input type="checkbox" name="use_ideas"
                             class="mt-1 rounded border-slate-300 text-blue-500 focus:ring-blue-500" {% if
                             prefs.data_context.use_ideas %}checked{% endif %}>
@@ -553,16 +591,20 @@
                         </div>
                     </div>
 
-                    <!-- Meal History (Spanning both columns) -->
-                    <label
-                        class="flex items-start gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100 cursor-pointer hover:bg-slate-100 transition group">
+                    <!-- Meal History -->
+                    <div
+                        class="flex items-start gap-3 p-4 rounded-2xl bg-white border border-slate-100 group shadow-sm">
                         <input type="checkbox" name="use_history"
                             class="mt-1 rounded border-slate-300 text-blue-500 focus:ring-blue-500" {% if
                             prefs.data_context.use_history %}checked{% endif %}>
                         <div class="flex-1">
-                            <span
-                                class="block text-sm font-bold text-slate-700 group-hover:text-blue-600 transition">Meal
-                                History</span>
+                            <div class="flex justify-between items-center">
+                                <span class="block text-sm font-bold text-slate-700">Meal
+                                    History</span>
+                                <a href="/history"
+                                    class="text-[10px] font-black uppercase text-blue-600 hover:text-blue-800 tracking-widest border border-blue-200 px-2 py-0.5 rounded-lg bg-blue-50/50 hover:bg-blue-100 transition-colors">Edit
+                                    History</a>
+                            </div>
                             <span class="block text-[11px] text-slate-400 leading-tight mt-0.5">Share recent plans
                                 to avoid repetition.</span>
 
@@ -574,7 +616,7 @@
                                     class="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 font-bold">
                             </div>
                         </div>
-                    </label>
+                    </div>
                 </div>
 
                 <div class="mb-8 p-6 bg-slate-900 rounded-3xl text-white">
@@ -587,7 +629,7 @@
                     </div>
                     <p class="text-xs text-slate-400 mb-4 leading-relaxed">Dietary rules, family sizes, or general
                         cooking styles that Arby should ALWAYS follow.</p>
-                    <textarea name="long_term_preferences" rows="5"
+                    <textarea name="long_term_preferences" rows="10"
                         class="w-full bg-slate-800/50 border border-slate-700/50 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-200 placeholder-slate-500 font-medium"
                         placeholder="e.g. 'We are a family of 4', 'Always prioritize high-protein meals', 'Minimize carbs during weekdays'...">{{ prefs.long_term_preferences }}</textarea>
                 </div>
@@ -600,9 +642,13 @@
                 </div>
             </form>
         </div>
+    </div>
 
-        <!-- System Locations (Moved Here) -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mt-6 mb-8">
+    <!-- System Tab -->
+    <div x-show="tab === 'system'" class="space-y-6">
+
+        <!-- System Locations -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-bold text-slate-800">System Data Nodes 📂</h2>
                 <span
@@ -639,7 +685,6 @@
             </div>
         </div>
     </div>
-</div>
 
 </div>
 

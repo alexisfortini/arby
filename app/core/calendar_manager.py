@@ -3,10 +3,10 @@ import json
 from datetime import datetime, timedelta, time as dt_time
 
 class CalendarManager:
-    def __init__(self, base_dir):
-        self.base_dir = base_dir
-        self.calendar_file = os.path.join(base_dir, 'state/calendar.json')
-        self.config_file = os.path.join(base_dir, 'state/schedule_config.json')
+    def __init__(self, state_dir):
+        self.state_dir = state_dir
+        self.calendar_file = os.path.join(state_dir, 'calendar.json')
+        self.config_file = os.path.join(state_dir, 'schedule_config.json')
 
     def load_calendar(self):
         if os.path.exists(self.calendar_file):

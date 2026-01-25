@@ -15,11 +15,13 @@ class ReviewResult(BaseModel):
     summary_message: str
 
 class ReviewManager:
-    def __init__(self, base_dir, model_manager=None):
-        self.base_dir = base_dir
+    def __init__(self, state_dir, model_manager=None):
+        self.state_dir = state_dir
         self.model_manager = model_manager
-        self.blacklist_file = os.path.join(base_dir, 'state/blacklist.json')
-        self.pdf_folder = os.environ.get("PDF_FOLDER")
+        self.blacklist_file = os.path.join(state_dir, 'blacklist.json')
+        # Recipes saved to user's 'recipes' folder
+        self.recipes_dir = os.path.join(state_dir, 'recipes')
+        os.makedirs(self.recipes_dir, exist_ok=True)
 
     def process_feedback(self, plan_text, feedback_text):
         """
@@ -93,7 +95,7 @@ class ReviewManager:
         # Sanitize filename
         safe_name = "".join([c for c in name if c.isalpha() or c.isdigit() or c==' ']).strip()
         filename = f"{safe_name}.md"
-        path = os.path.join(self.pdf_folder, filename)
+        path = os.path.join(self.recipes_dir, filename)
         
         with open(path, 'w') as f:
             f.write(content)

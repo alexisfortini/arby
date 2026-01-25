@@ -1,0 +1,9 @@
+runtime: python311
+entrypoint: gunicorn -b :$PORT app.web.server:app
+env: flex
+
+runtime_config:
+    python_version: 3
+
+manual_scaling:
+  instances: 1

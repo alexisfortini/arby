@@ -89,7 +89,9 @@
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
             <!-- Day Header -->
             <div class="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-                <h2 class="text-xl font-bold text-slate-800">{{ day.date }}</h2> <!-- Ideally format this date -->
+                <h2 class="text-xl font-bold text-slate-800">{{ day.date | day_name }}</h2>
+                <span class="text-sm font-bold text-slate-400 uppercase tracking-widest">{{ day.date | short_date
+                    }}</span>
             </div>
 
             <div class="divide-y divide-slate-100">

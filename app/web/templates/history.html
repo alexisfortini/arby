@@ -12,16 +12,46 @@
     <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
         <div class="bg-slate-50 p-4 border-b border-slate-100 flex justify-between items-center">
             <h2 class="font-bold text-slate-700">{{ entry.date }}</h2>
-            <button onclick="openReviewModal({{ idx }})"
-                class="text-sm bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg font-semibold hover:bg-indigo-200">
-                ⭐ Review
-            </button>
+            <div class="flex gap-2">
+                <button onclick="openReviewModal({{ idx }})"
+                    class="text-sm bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg font-semibold hover:bg-indigo-200">
+                    ⭐ Review
+                </button>
+                <form action="/history/delete/{{ idx }}" method="POST"
+                    onsubmit="return confirm('Delete this history entry?')">
+                    <button type="submit"
+                        class="text-sm bg-red-50 text-red-500 px-3 py-1 rounded-lg font-semibold hover:bg-red-100">
+                        🗑️
+                    </button>
+                </form>
+            </div>
         </div>
         <div class="p-4 prose prose-sm max-w-none text-slate-600">
-            <!-- We display a snippet first, then full on click? Or just a summary? 
-                 Since 'summary' contains the FULL text, it might be long. 
-                 Let's clamp it visually via CSS. -->
-            <div class="line-clamp-6 whitespace-pre-line">{{ entry.summary }}</div>
+            <div class="mb-4 whitespace-pre-line">{{ entry.summary }}</div>
+
+            {% if entry.meals %}
+            <div class="border-t border-slate-100 pt-4">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Meals & Ratings</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {% for meal in entry.meals %}
+                    <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
+                        <span class="text-xs font-bold text-slate-700 truncate mr-2">{{ meal.name }}</span>
+                        <div class="flex items-center gap-1">
+                            {% for i in range(1, 6) %}
+                            <form action="/history/rate/{{ idx }}/{{ loop.index0 }}/{{ i }}" method="POST"
+                                class="inline">
+                                <button type="submit"
+                                    class="text-xs {{ 'text-yellow-400' if i <= (meal.rating|int) else 'text-slate-300' }} hover:scale-125 transition-transform">
+                                    ★
+                                </button>
+                            </form>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
     {% endfor %}

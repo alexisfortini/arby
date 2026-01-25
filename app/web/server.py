@@ -17,15 +17,30 @@ original_env = os.environ.copy()
 # Ensure app modules are found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+
 from app.core.agent import ArbyAgent
 from app.core.inventory_manager import InventoryManager
 from app.core.review_manager import ReviewManager
+from app.core.user_manager import UserManager, User
 
 load_dotenv()
 
 app = Flask(__name__)
 # Secret key needed for flash messages
 app.secret_key = os.environ.get("FLASK_SECRET", "dev-secret-key-change-me")
+
+# --- AUTH SETUP ---
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
+user_manager = UserManager(base_dir)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return user_manager.get_user(user_id)
 
 @app.context_processor
 def inject_version():
@@ -40,53 +55,58 @@ def inject_version():
     except:
         git_hash = "local"
         
-    return dict(app_version="v1.0.1", git_hash=git_hash)
+    return dict(app_version="v1.0.3", git_hash=git_hash)
 
+# --- DYNAMIC AGENT HELPER ---
+def get_agent():
+    if not current_user.is_authenticated:
+        return None
+    # Provide a user-scoped agent
+    return ArbyAgent(base_dir, user_id=current_user.id)
 
-base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
-agent = ArbyAgent(base_dir, original_env=original_env)
-inventory_manager = InventoryManager(os.path.join(base_dir, 'state/inventory.json'), model_manager=agent.model_manager)
-review_manager = ReviewManager(base_dir, model_manager=agent.model_manager)
+# --- AUTH ROUTES ---
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        user = user_manager.verify_login(email, password)
+        if user:
+            login_user(user)
+            return redirect('/')
+        else:
+            flash('Invalid email or password', 'error')
+    return render_template('login.html')
 
-# --- SCHEDULER ---
-def run_agent_job():
-    config = agent.calendar_manager.load_config()
-    if not config.get('schedule_enabled', True):
-        print("Scheduled Job skipped (Disabled in settings).")
-        return
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        name = request.form.get('name')
+        email = request.form.get('email')
+        password = request.form.get('password')
         
-    print("Running Scheduled Job...")
-    agent.run()
+        user, error = user_manager.create_user(name, email, password)
+        if user:
+            login_user(user)
+            flash('Welcome to Arby!', 'success')
+            return redirect('/')
+        else:
+            flash(error, 'error')
+    return render_template('signup.html')
 
-def schedule_runner():
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect('/login')
 
+# --- SCHEDULER (Disabled for now in multi-user refactor) ---
+# Todo: Implement per-user scheduling
 def init_scheduler():
-    """Initializes or re-initializes the schedule based on config."""
-    schedule.clear()
-    config = agent.calendar_manager.load_config()
-    run_day = config.get('run_day', 'Sunday').lower()
-    run_time = config.get('run_time', '10:00')
-    
-    # Map day names to schedule methods
-    day_map = {
-        "monday": schedule.every().monday,
-        "tuesday": schedule.every().tuesday,
-        "wednesday": schedule.every().wednesday,
-        "thursday": schedule.every().thursday,
-        "friday": schedule.every().friday,
-        "saturday": schedule.every().saturday,
-        "sunday": schedule.every().sunday
-    }
-    
-    job_builder = day_map.get(run_day, schedule.every().sunday)
-    job_builder.at(run_time).do(run_agent_job)
-    print(f"Scheduler initialized: Every {run_day.capitalize()} at {run_time}")
+    pass 
 
-init_scheduler()
-threading.Thread(target=schedule_runner, daemon=True).start()
+
+
 
 # Helper for display
 def format_date_suffix(dt):
@@ -95,9 +115,63 @@ def format_date_suffix(dt):
     # %p returns AM/PM, using abbreviated month for space
     return dt.strftime(f"%A, %b {dt.day}{suffix} at %I:%M %p").replace("AM", "am").replace("PM", "pm")
 
+@app.template_filter('pretty_date')
+def pretty_date_filter(date_str):
+    if not date_str:
+        return ""
+    try:
+        # Assuming date_str is YYYY-MM-DD
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        suffix = "th" if 11 <= dt.day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(dt.day % 10, "th")
+        return dt.strftime(f"%A - %b {dt.day}{suffix}")
+    except Exception:
+        return date_str
+
+@app.template_filter('day_name')
+def day_name_filter(date_str):
+    if not date_str: return ""
+    try:
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        return dt.strftime("%A")
+    except:
+        return date_str
+
+@app.template_filter('short_date')
+def short_date_filter(date_str):
+    if not date_str: return ""
+    try:
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        suffix = "th" if 11 <= dt.day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(dt.day % 10, "th")
+        return dt.strftime(f"%b {dt.day}{suffix}")
+    except:
+        return date_str
+
+@app.context_processor
+def inject_common_data():
+    """Provides common data to all templates globally."""
+    agent = get_agent()
+    # Load Prefs
+    pref_path = agent.pref_file
+    prefs = {}
+    if os.path.exists(pref_path):
+        try:
+            with open(pref_path, 'r') as f:
+                prefs = json.load(f)
+        except:
+            pass
+    
+    # Ensure data_context exists for safety
+    if 'data_context' not in prefs:
+        prefs['data_context'] = {}
+        
+    return dict(prefs=prefs)
+
 # --- ROUTES ---
 @app.route('/')
+@login_required
 def index():
+    agent = get_agent()
+    
     # Load Config
     config = agent.calendar_manager.load_config()
     schedule_enabled = config.get('schedule_enabled', True)
@@ -123,9 +197,9 @@ def index():
  
     last_run = last_run_display
     
-    current_ideas = ""
-    if os.path.exists(os.path.join(base_dir, 'state/ideas.txt')):
-        with open(os.path.join(base_dir, 'state/ideas.txt'), 'r') as f:
+    current_ideas = "No specific cravings."
+    if os.path.exists(agent.ideas_file):
+        with open(agent.ideas_file, 'r') as f:
             current_ideas = f.read().strip()
     
     # Get Models for Selector
@@ -161,7 +235,14 @@ def index():
     default_start_pretty = default_start.strftime("%a, %b %d")
 
     # Check for active plan
-    active_plan_exists = os.path.exists(os.path.join(agent.state_dir, 'active_plan.json'))
+    active_plan_exists = os.path.exists(os.path.join(agent.user_state_dir, 'active_plan.json'))
+
+    # Load Prefs for modal
+    pref_path = agent.pref_file
+    prefs = {}
+    if os.path.exists(pref_path):
+        with open(pref_path, 'r') as f:
+            prefs = json.load(f)
 
     return render_template('index.html', 
                            next_run=next_run_str, 
@@ -176,7 +257,9 @@ def index():
                            run_time=config.get('run_time', '10:00'),
                            duration_days=config.get('duration_days', 8),
                            days_data=days_data,
-                           default_start_date_pretty=default_start_pretty)
+                           default_start_date_pretty=default_start_pretty,
+                           prefs=prefs,
+                           user=current_user)
 
 @app.route('/health')
 def health_check():
@@ -184,7 +267,10 @@ def health_check():
     return {"status": "healthy", "version": "1.0.0"}
 
 @app.route('/settings', methods=['GET', 'POST'])
+@login_required
 def settings_page():
+    agent = get_agent()
+
     if request.method == 'POST':
         # Update .env file safely
         env_path = os.path.join(base_dir, '.env')
@@ -239,10 +325,8 @@ def settings_page():
             with open(env_path, 'w') as f:
                 f.writelines(new_lines)
             
-            # Reload Env
+            # Reload Env to update process state for next requests
             load_dotenv(env_path, override=True)
-            # Re-init Model Manager to pick up new keys
-            agent.model_manager = agent.model_manager.__class__(base_dir=base_dir, original_env=original_env) 
             flash("Settings updated! Models unlocked based on new keys.", "success")
         except Exception as e:
             flash(f"Error saving settings: {e}", "error")
@@ -253,7 +337,7 @@ def settings_page():
     all_models = agent.model_manager.get_available_models()
     
     # Load Preferences
-    pref_path = os.path.join(agent.state_dir, 'preferences.json')
+    pref_path = agent.pref_file
     prefs = {}
     if os.path.exists(pref_path):
         with open(pref_path, 'r') as f:
@@ -313,19 +397,20 @@ def settings_page():
         }
 
     current_ideas = ""
-    if os.path.exists(os.path.join(base_dir, 'state/ideas.txt')):
-        with open(os.path.join(base_dir, 'state/ideas.txt'), 'r') as f:
+    if os.path.exists(agent.ideas_file):
+        with open(agent.ideas_file, 'r') as f:
             current_ideas = f.read().strip()
 
     return render_template('settings.html', 
         display_keys=display_keys,
         models=all_models,
-        pdf_library_path=cookbook_manager.library_path,
-        state_folder_path=os.path.join(base_dir, 'state'),
+        pdf_library_path=agent.cookbook_manager.library_path,
+        state_folder_path=agent.user_state_dir,
         env_file_path=os.path.join(base_dir, '.env'),
         prefs=prefs,
         current_ideas=current_ideas,
-        active_tab=request.args.get('tab', 'models')
+        active_tab=request.args.get('tab', 'models'),
+        user=current_user
     )
 
 @app.route('/help')
@@ -333,8 +418,10 @@ def help_page():
     return render_template('help.html')
 
 @app.route('/settings/preferences', methods=['POST'])
+@login_required
 def update_preferences():
-    pref_path = os.path.join(agent.state_dir, 'preferences.json')
+    agent = get_agent()
+    pref_path = agent.pref_file
     prefs = {}
     if os.path.exists(pref_path):
         with open(pref_path, 'r') as f:
@@ -345,6 +432,7 @@ def update_preferences():
         "use_inventory": 'use_inventory' in request.form,
         "use_history": 'use_history' in request.form,
         "use_ideas": 'use_ideas' in request.form,
+        "use_cookbook": 'use_cookbook' in request.form,
     }
     
     # Update History Depth
@@ -360,7 +448,9 @@ def update_preferences():
     return redirect('/settings?tab=data')
 
 @app.route('/settings/models/add', methods=['POST'])
+@login_required
 def add_custom_model():
+    agent = get_agent()
     provider = request.form.get('provider')
     model_id = request.form.get('model_id')
     name = request.form.get('name')
@@ -376,7 +466,9 @@ def add_custom_model():
     return redirect('/settings')
 
 @app.route('/settings/models/delete', methods=['POST'])
+@login_required
 def delete_model():
+    agent = get_agent()
     model_id = request.form.get('model_id')
     if model_id:
         agent.model_manager.hide_model(model_id)
@@ -385,23 +477,29 @@ def delete_model():
 
 
 @app.route('/settings/models/restore', methods=['POST'])
+@login_required
 def restore_models():
+    agent = get_agent()
     agent.model_manager.restore_defaults()
     flash("Restored all default models.", "success")
     return redirect('/settings')
 
 @app.route('/inventory')
+@login_required
 def inventory_page():
-    items = inventory_manager.load_inventory()
+    agent = get_agent()
     # Sort by expiry if possible or just as is
-    return render_template('inventory.html', items=enumerate(items))
+    items = agent.inventory_manager.load_inventory()
+    return render_template('inventory.html', items=enumerate(items), user=current_user)
 
 @app.route('/inventory/add', methods=['POST'])
+@login_required
 def add_inventory():
+    agent = get_agent()
     raw_text = request.form.get('ingredients')
     if raw_text:
         try:
-            count = inventory_manager.parse_and_add(raw_text)
+            count = agent.inventory_manager.parse_and_add(raw_text)
             if count > 0:
                 flash(f"Successfully added {count} items!", "success")
             else:
@@ -409,12 +507,21 @@ def add_inventory():
         except Exception as e:
             flash(f"Error: {e}", "error")
     return redirect(url_for('inventory_page'))
-
-# ... (inventory edit/delete routes stay same)
+    
+@app.route('/inventory/delete/<int:index>', methods=['POST'])
+@login_required
+def delete_inventory(index):
+    agent = get_agent()
+    if agent.inventory_manager.delete_item(index):
+        flash("Item removed.", "info")
+    else:
+        flash("Failed to remove item.", "error")
+    return redirect(url_for('inventory_page'))
 
 @app.route('/inventory/edit/<int:index>', methods=['POST'])
+@login_required
 def edit_inventory(index):
-    # ... (same as before)
+    agent = get_agent()
     data = {
         "item": request.form.get("item"),
         "brand": request.form.get("brand"),
@@ -425,44 +532,136 @@ def edit_inventory(index):
         "purchase_date": request.form.get("purchase_date"),
         "expiry_date": request.form.get("expiry_date"),
     }
-    if inventory_manager.update_item(index, data):
+    if agent.inventory_manager.update_item(index, data):
         flash("Item updated.", "success")
     else:
         flash("Failed to update item.", "error")
     return redirect(url_for('inventory_page'))
 
 @app.route('/inventory/increment/<int:index>', methods=['POST'])
+@login_required
 def increment_inventory(index):
-    inventory = inventory_manager.load_inventory()
-    if 0 <= index < len(inventory):
-        inventory[index]['quantity'] += 1
-        inventory[index]['updated_on'] = datetime.now().strftime("%Y-%m-%d")
-        inventory_manager.save_inventory(inventory)
-        return jsonify({"status": "ok", "new_quantity": inventory[index]['quantity']})
+    agent = get_agent()
+    items = agent.inventory_manager.load_inventory()
+    if 0 <= index < len(items):
+        items[index]['quantity'] += 1
+        items[index]['updated_on'] = datetime.now().strftime("%Y-%m-%d")
+        agent.inventory_manager.save_inventory(items)
+        return jsonify({"status": "ok", "new_quantity": items[index]['quantity']})
     return jsonify({"status": "error"}), 404
 
+@app.route('/history')
+@login_required
+def history_page():
+    agent = get_agent()
+    history = agent.load_history()
+    # Reverse to show newest first, but keep original indices for actions
+    indexed_history = list(enumerate(history))
+    indexed_history.reverse()
+    return render_template('history.html', history=indexed_history, user=current_user)
+
+@app.route('/history/delete/<int:index>', methods=['POST'])
+@login_required
+def delete_history_entry(index):
+    agent = get_agent()
+    history = agent.load_history()
+    if 0 <= index < len(history):
+        history.pop(index)
+        with open(agent.history_file, 'w') as f:
+            json.dump(history, f, indent=4)
+        flash("History entry removed.", "info")
+    return redirect('/history')
+
+@app.route('/history/review/<int:index>', methods=['POST'])
+@login_required
+def review_history_entry(index):
+    agent = get_agent()
+    feedback = request.form.get('feedback')
+    history = agent.load_history()
+    
+    if 0 <= index < len(history):
+        entry = history[index]
+        try:
+            # Re-construct a plan-like object or just use the summary text
+            plan_text = entry.get('summary', '')
+            # If we have meal details, include them for better extraction
+            if 'meals' in entry:
+                plan_text += "\n\nMeals in this plan:\n"
+                for m in entry['meals']:
+                    plan_text += f"- {m['name']} (Rating: {m.get('rating', 'None')})\n"
+            
+            result_msg = agent.review_manager.process_feedback(plan_text, feedback)
+            flash(result_msg, "success")
+        except Exception as e:
+            print(f"Failed to process history feedback: {e}")
+            flash("Submitted feedback.", "info")
+            
+    return redirect('/history')
+
+@app.route('/history/rate/<int:index>/<int:meal_index>/<int:rating>', methods=['POST'])
+@login_required
+def rate_history_meal(index, meal_index, rating):
+    agent = get_agent()
+    history = agent.load_history()
+    
+    if 0 <= index < len(history):
+        entry = history[index]
+        if 'meals' in entry and 0 <= meal_index < len(entry['meals']):
+            entry['meals'][meal_index]['rating'] = rating
+            
+            # Also sync to cookbook if possible
+            meal_name = entry['meals'][meal_index]['name']
+            agent.cookbook_manager.update_recipe_rating_by_name(meal_name, rating)
+            
+            with open(agent.history_file, 'w') as f:
+                json.dump(history, f, indent=4)
+            flash(f"Rated {meal_name} {rating} stars!", "success")
+            
+    return redirect('/history')
+
 @app.route('/generate', methods=['POST'])
+@login_required
 def generate_plan():
+    agent = get_agent()
     """Generates a DRAFT plan and redirects to review page."""
     model_id = request.form.get('model_id')
     start_date = request.form.get('start_date')
     duration = request.form.get('duration')
     
-    # Persist Preference
-    if model_id:
-        try:
-            pref_path = os.path.join(base_dir, 'state/preferences.json')
-            prefs = {}
-            if os.path.exists(pref_path):
-                with open(pref_path, 'r') as f:
-                    prefs = json.load(f)
-            
+    # Persist Preference & Context Overrides
+    try:
+        pref_path = agent.pref_file
+        prefs = {}
+        if os.path.exists(pref_path):
+            with open(pref_path, 'r') as f:
+                prefs = json.load(f)
+        
+        # Update Model Preference
+        if model_id:
             prefs['preferred_model'] = model_id
-            
-            with open(pref_path, 'w') as f:
-                json.dump(prefs, f)
-        except Exception as e:
-            print(f"Failed to save preference: {e}")
+        
+        # Update Data Context from modal overrides
+        prefs['data_context'] = {
+            "use_inventory": 'use_inventory' in request.form,
+            "use_history": 'use_history' in request.form,
+            "use_ideas": 'use_ideas' in request.form,
+            "use_cookbook": 'use_cookbook' in request.form,
+        }
+        
+        # Update History Depth
+        history_depth = request.form.get('history_depth')
+        if history_depth:
+            prefs['history_depth'] = int(history_depth)
+        
+        # Update Long-term Preferences
+        ltp = request.form.get('long_term_preferences')
+        if ltp is not None:
+            prefs['long_term_preferences'] = ltp
+        
+        with open(pref_path, 'w') as f:
+            json.dump(prefs, f, indent=4)
+    except Exception as e:
+        print(f"Failed to save preferences: {e}")
 
     try:
         draft = agent.generate_draft(model_id=model_id, start_date=start_date, duration=duration)
@@ -471,7 +670,7 @@ def generate_plan():
             return redirect('/')
             
         # Save Draft to State
-        draft_path = os.path.join(agent.state_dir, 'current_draft.json')
+        draft_path = os.path.join(agent.user_state_dir, 'current_draft.json')
         with open(draft_path, 'w') as f:
             json.dump(draft, f, indent=4)
             
@@ -482,8 +681,10 @@ def generate_plan():
         return redirect('/')
 
 @app.route('/plan/review')
+@login_required
 def review_plan_page():
-    draft_path = os.path.join(agent.state_dir, 'current_draft.json')
+    agent = get_agent()
+    draft_path = os.path.join(agent.user_state_dir, 'current_draft.json')
     if not os.path.exists(draft_path):
         flash("No draft plan found. Please generate one first.", "warning")
         return redirect('/')
@@ -491,14 +692,16 @@ def review_plan_page():
     with open(draft_path, 'r') as f:
         draft = json.load(f)
         
-    return render_template('review_plan.html', plan=draft)
+    return render_template('review_plan.html', plan=draft, user=current_user)
 
 @app.route('/plan/modify', methods=['POST'])
+@login_required
 def modify_plan():
+    agent = get_agent()
     user_feedback = request.form.get('feedback')
     model_id = request.form.get('model_id') # Optional override
     
-    draft_path = os.path.join(agent.state_dir, 'current_draft.json')
+    draft_path = os.path.join(agent.user_state_dir, 'current_draft.json')
     if not os.path.exists(draft_path):
         flash("No draft found to modify.", "error")
         return redirect('/')
@@ -532,10 +735,12 @@ def modify_plan():
     return redirect('/plan/review')
 
 @app.route('/plan/active/modify', methods=['POST'])
+@login_required
 def modify_active_plan():
+    agent = get_agent()
     user_feedback = request.form.get('feedback')
     
-    active_path = os.path.join(agent.state_dir, 'active_plan.json')
+    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
     if not os.path.exists(active_path):
         flash("No active plan found to modify.", "error")
         return redirect('/')
@@ -566,7 +771,7 @@ def modify_active_plan():
     if 'checked_groceries' in current_plan:
         new_plan['checked_groceries'] = current_plan['checked_groceries']
     if 'completed_meals' in current_plan:
-         new_plan['completed_meals'] = current_plan['completed_meals']
+        new_plan['completed_meals'] = current_plan['completed_meals']
         
     # We might want to re-run pantry recommendations since ingredients changed
     try:
@@ -600,8 +805,10 @@ def modify_active_plan():
     return redirect('/plan/view')
 
 @app.route('/plan/confirm', methods=['POST'])
+@login_required
 def confirm_plan():
-    draft_path = os.path.join(agent.state_dir, 'current_draft.json')
+    agent = get_agent()
+    draft_path = os.path.join(agent.user_state_dir, 'current_draft.json')
     if not os.path.exists(draft_path):
         return redirect('/')
         
@@ -619,28 +826,35 @@ def confirm_plan():
         print(f"Auto-pantry check failed: {e}")
     
     # Move to Active Plan
-    active_path = os.path.join(agent.state_dir, 'active_plan.json')
+    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
     with open(active_path, 'w') as f:
         json.dump(draft, f, indent=4)
         
     # Remove Draft
     os.remove(draft_path)
     
+    # Clear Ideas/Cravings
+    if os.path.exists(agent.ideas_file):
+        with open(agent.ideas_file, 'w') as f:
+            f.write("")
+    
     flash("Plan confirmed! Calendar updated and email sent.", "success")
     return redirect('/plan/view')
 
 @app.route('/plan/view')
+@login_required
 def view_active_plan():
-    active_path = os.path.join(agent.state_dir, 'active_plan.json')
+    agent = get_agent()
+    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
     if not os.path.exists(active_path):
          flash("No active detailed plan found.", "info")
-         return redirect('/calendar')
+         return redirect('/')
          
     with open(active_path, 'r') as f:
         plan = json.load(f)
         
     # Enrich plan with current cookbook ratings
-    recipes = cookbook_manager.load_recipes()
+    recipes = agent.cookbook_manager.load_recipes()
     recipe_map = {r['name'].lower(): r for r in recipes}
     
     for day in plan.get('days', []):
@@ -654,38 +868,44 @@ def view_active_plan():
                     if 'rating' not in meal:
                         meal['rating'] = match.get('rating', 0)
     
-    return render_template('view_plan.html', plan=plan, title="Meal Plan")
+    return render_template('view_plan.html', plan=plan, title="Meal Plan", user=current_user)
 
 @app.route('/plan/grocery')
+@login_required
 def grocery_plan_page():
-    active_path = os.path.join(agent.state_dir, 'active_plan.json')
+    agent = get_agent()
+    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
     if not os.path.exists(active_path):
           flash("No active detailed plan found.", "info")
-          return redirect('/calendar')
+          return redirect('/')
           
     with open(active_path, 'r') as f:
         plan = json.load(f)
         
-    return render_template('grocery_list.html', plan=plan, title="Grocery List")
+    return render_template('grocery_list.html', plan=plan, title="Grocery List", user=current_user)
 
 @app.route('/plan/cook')
+@login_required
 def cook_plan_page():
-    active_path = os.path.join(agent.state_dir, 'active_plan.json')
+    agent = get_agent()
+    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
     if not os.path.exists(active_path):
           flash("No active detailed plan found.", "info")
-          return redirect('/calendar')
+          return redirect('/')
           
     with open(active_path, 'r') as f:
         plan = json.load(f)
     
-    return render_template('cooking_mode.html', plan=plan, title="Live Cooking")
+    return render_template('cooking_mode.html', plan=plan, title="Live Cooking", user=current_user)
 
 @app.route('/api/plan/grocery/toggle_meal', methods=['POST'])
+@login_required
 def toggle_grocery_meal_item():
+    agent = get_agent()
     data = request.json
     item_id = data.get('item_id') # format: date-meal-index
     
-    active_path = os.path.join(agent.state_dir, 'active_plan.json')
+    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
     if not os.path.exists(active_path):
         return jsonify({"status": "error", "message": "No active plan"}), 404
         
@@ -709,11 +929,13 @@ def toggle_grocery_meal_item():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/plan/cook/toggle_ingredient', methods=['POST'])
+@login_required
 def toggle_cooking_ingredient():
+    agent = get_agent()
     data = request.json
     item_id = data.get('item_id') # format: date-meal-index
     
-    active_path = os.path.join(agent.state_dir, 'active_plan.json')
+    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
     if not os.path.exists(active_path):
         return jsonify({"status": "error", "message": "No active plan"}), 404
         
@@ -736,11 +958,13 @@ def toggle_cooking_ingredient():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/plan/cook/toggle_step', methods=['POST'])
+@login_required
 def toggle_cooking_step():
+    agent = get_agent()
     data = request.json
     step_id = data.get('step_id') # format: date-meal-stepindex
     
-    active_path = os.path.join(agent.state_dir, 'active_plan.json')
+    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
     if not os.path.exists(active_path):
         return jsonify({"status": "error", "message": "No active plan"}), 404
         
@@ -763,11 +987,13 @@ def toggle_cooking_step():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/plan/cook/toggle_meal', methods=['POST'])
+@login_required
 def toggle_cooking_meal():
+    agent = get_agent()
     data = request.json
     meal_id = data.get('meal_id') # format: date-mealtype
     
-    active_path = os.path.join(agent.state_dir, 'active_plan.json')
+    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
     if not os.path.exists(active_path):
         return jsonify({"status": "error", "message": "No active plan"}), 404
         
@@ -789,11 +1015,11 @@ def toggle_cooking_meal():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
-
 @app.route('/api/plan/grocery/pantry_check', methods=['POST'])
+@login_required
 def run_pantry_check():
-    active_path = os.path.join(agent.state_dir, 'active_plan.json')
+    agent = get_agent()
+    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
     if not os.path.exists(active_path):
         return jsonify({"status": "error", "message": "No active plan"}), 404
         
@@ -801,20 +1027,29 @@ def run_pantry_check():
         with open(active_path, 'r') as f:
             plan = json.load(f)
             
-        recommendations = agent.recommend_grocery_checks(plan)
+        new_checks = agent.recommend_grocery_checks(plan)
         
-        # Save recommendations to the plan so they persist on refresh
-        plan['pantry_recommendations'] = recommendations
+        # Merge with existing
+        if 'pantry_recommendations' not in plan:
+            plan['pantry_recommendations'] = []
+            
+        # Add new ones if unique
+        for item_id in new_checks:
+            if item_id not in plan['pantry_recommendations']:
+                plan['pantry_recommendations'].append(item_id)
+                
         with open(active_path, 'w') as f:
             json.dump(plan, f, indent=4)
             
-        return jsonify({"status": "ok", "recommendations": recommendations})
+        return jsonify({"status": "ok", "recommended_checks": plan['pantry_recommendations']})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/plan/grocery/add_to_pantry', methods=['POST'])
+@login_required
 def add_grocery_to_pantry():
-    active_path = os.path.join(agent.state_dir, 'active_plan.json')
+    agent = get_agent()
+    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
     if not os.path.exists(active_path):
         return jsonify({"status": "error", "message": "No active plan"}), 404
         
@@ -846,7 +1081,7 @@ def add_grocery_to_pantry():
             
         # Parse and add to inventory using InventoryManager
         raw_text = "\n".join(items_to_add)
-        count = inventory_manager.parse_and_add(raw_text)
+        count = agent.inventory_manager.parse_and_add(raw_text)
         
         # Mark these items as "in pantry" so they get the green badge on refresh
         if 'pantry_recommendations' not in plan:
@@ -864,7 +1099,9 @@ def add_grocery_to_pantry():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/plan/grocery/add_one_to_pantry', methods=['POST'])
+@login_required
 def add_one_grocery_to_pantry():
+    agent = get_agent()
     data = request.json
     ingredient_str = data.get('ingredient')
     item_id = data.get('item_id')
@@ -872,10 +1109,10 @@ def add_one_grocery_to_pantry():
     if not ingredient_str:
         return jsonify({"status": "error", "message": "Missing ingredient"}), 400
 
-    active_path = os.path.join(agent.state_dir, 'active_plan.json')
+    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
     
     try:
-        success, message = inventory_manager.add_one_smartly(ingredient_str)
+        success, message = agent.inventory_manager.add_one_smartly(ingredient_str)
         
         if success and item_id:
              # Mark as "in pantry" so it gets the green badge
@@ -897,14 +1134,16 @@ def add_one_grocery_to_pantry():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/inventory/remove_by_recipe_item', methods=['POST'])
+@login_required
 def remove_ingredient_from_cooking():
+    agent = get_agent()
     data = request.json
     ingredient_str = data.get('ingredient')
     if not ingredient_str:
         return jsonify({"status": "error", "message": "Missing ingredient string"}), 400
         
     try:
-        success, message = inventory_manager.remove_by_recipe_item(ingredient_str)
+        success, message = agent.inventory_manager.remove_by_recipe_item(ingredient_str)
         if success:
             return jsonify({"status": "ok", "message": message})
         else:
@@ -913,9 +1152,11 @@ def remove_ingredient_from_cooking():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/cookbook')
+@login_required
 def cookbook_page():
+    agent = get_agent()
     from app.core.cookbook_manager import CATEGORIES, PROTEINS
-    recipes = cookbook_manager.load_recipes()
+    recipes = agent.cookbook_manager.load_recipes()
     
     # Filter/Search logic
     query = request.args.get('q')
@@ -932,99 +1173,108 @@ def cookbook_page():
     if protein_filter:
         recipes = [r for r in recipes if r.get('protein') == protein_filter]
         
-    return render_template('cookbook.html', recipes=recipes, categories=CATEGORIES, proteins=PROTEINS)
+    return render_template('cookbook.html', recipes=recipes, categories=CATEGORIES, proteins=PROTEINS, user=current_user)
 
-# --- SYNC STATUS GLOBAL ---
-SYNC_STATUS = {
-    "is_syncing": False,
-    "current": 0,
-    "total": 0,
-    "message": "Idle",
-    "percent": 0,
-    "cancel_requested": False
-}
+# --- SYNC STATUS (Multi-User) ---
+# Dict: user_id -> sync_status_dict
+USER_SYNC_STATS = {}
 
-def run_sync_job():
-    global SYNC_STATUS
-    SYNC_STATUS["is_syncing"] = True
-    SYNC_STATUS["cancel_requested"] = False
-    SYNC_STATUS["message"] = "Starting sync..."
+def get_user_sync_status(user_id):
+    if user_id not in USER_SYNC_STATS:
+        USER_SYNC_STATS[user_id] = {
+            "is_syncing": False,
+            "current": 0,
+            "total": 0,
+            "message": "Idle",
+            "percent": 0,
+            "cancel_requested": False
+        }
+    return USER_SYNC_STATS[user_id]
+
+def run_sync_job(user_id):
+    status = get_user_sync_status(user_id)
+    status["is_syncing"] = True
+    status["cancel_requested"] = False
+    status["message"] = "Starting sync..."
+    
+    # We need a fresh agent for the thread
+    from app.core.agent import ArbyAgent
+    thread_agent = ArbyAgent(base_dir, user_id=user_id)
     
     def callback(curr, total, msg):
-        global SYNC_STATUS
-        SYNC_STATUS["current"] = curr
-        SYNC_STATUS["total"] = total
-        SYNC_STATUS["message"] = msg
+        status["current"] = curr
+        status["total"] = total
+        status["message"] = msg
         if total > 0:
-            SYNC_STATUS["percent"] = int((curr / total) * 100)
-            
+            status["percent"] = int((curr / total) * 100)
+        else:
+            status["percent"] = 0
+
     def check_cancel():
-        return SYNC_STATUS.get("cancel_requested", False)
-        
+        return status.get("cancel_requested", False)
+
     try:
-        # Use selected Librarian model (usually a Gemini model for PDF ingestion)
-        librarian_id = agent.model_manager.get_librarian_model_id()
-        print(f"DEBUG: Librarian Model: {librarian_id}")
+        librarian_id = thread_agent.model_manager.get_librarian_model_id()
+        added_recipes = thread_agent.cookbook_manager.sync_library(progress_callback=callback, model_id=librarian_id, cancel_check=check_cancel)
         
-        added_recipes = cookbook_manager.sync_library(progress_callback=callback, model_id=librarian_id, cancel_check=check_cancel)
-        
-        if SYNC_STATUS.get("cancel_requested"):
-             SYNC_STATUS["message"] = "Sync Stopped."
-             print("DEBUG: --- SYNC JOB STOPPED ---")
+        if status.get("cancel_requested"):
+             status["message"] = "Sync Stopped."
         else:
              if added_recipes:
-                 # Join names, maybe truncate if too long
-                 names_str = ", ".join(added_recipes)
-                 if len(names_str) > 50:
-                     names_str = names_str[:47] + "..."
-                 SYNC_STATUS["message"] = f"Sync Complete! Added: {names_str}"
+                  names_str = ", ".join(added_recipes)
+                  if len(names_str) > 50:
+                      names_str = names_str[:47] + "..."
+                  status["message"] = f"Sync Complete! Added: {names_str}"
              else:
-                 SYNC_STATUS["message"] = "Sync Complete! No new recipes found."
-                 
-             SYNC_STATUS["percent"] = 100
-             print("DEBUG: --- SYNC JOB FINISHED ---")
+                  status["message"] = "Sync Complete! No new recipes found."
+             status["percent"] = 100
              
     except Exception as e:
-        SYNC_STATUS["message"] = f"Error: {e}"
-        print(f"DEBUG: Sync Job Exception: {e}")
+        status["message"] = f"Error: {e}"
         import traceback
         traceback.print_exc()
     finally:
         time.sleep(1) # Let UI see message
-        SYNC_STATUS["is_syncing"] = False
-        SYNC_STATUS["cancel_requested"] = False
+        status["is_syncing"] = False
+        status["cancel_requested"] = False
 
 @app.route('/cookbook/sync', methods=['POST'])
+@login_required
 def sync_cookbook():
-    global SYNC_STATUS
-    if SYNC_STATUS["is_syncing"]:
+    status = get_user_sync_status(current_user.id)
+    if status["is_syncing"]:
         return jsonify({"status": "already_running"}), 200
         
-    # Start thread
-    threading.Thread(target=run_sync_job).start()
+    threading.Thread(target=run_sync_job, args=(current_user.id,)).start()
     return jsonify({"status": "started"}), 200
 
 @app.route('/cookbook/sync/cancel', methods=['POST'])
+@login_required
 def cancel_sync():
-    global SYNC_STATUS
-    if SYNC_STATUS["is_syncing"]:
-        SYNC_STATUS["cancel_requested"] = True
+    status = get_user_sync_status(current_user.id)
+    if status["is_syncing"]:
+        status["cancel_requested"] = True
         return jsonify({"status": "cancel_requested"}), 200
     return jsonify({"status": "not_running"}), 200
 
 @app.route('/cookbook/sync/status')
+@login_required
 def sync_status():
-    return jsonify(SYNC_STATUS)
+    return jsonify(get_user_sync_status(current_user.id))
 
 
 from flask import send_from_directory
 
 @app.route('/cookbook/pdf/<path:filename>')
+@login_required
 def serve_recipe_pdf(filename):
-    return send_from_directory(cookbook_manager.library_path, filename)
+    agent = get_agent()
+    return send_from_directory(agent.cookbook_manager.library_path, filename)
 
 @app.route('/cookbook/add', methods=['GET', 'POST'])
+@login_required
 def add_recipe():
+    agent = get_agent()
     from app.core.cookbook_manager import CATEGORIES, PROTEINS
     if request.method == 'POST':
         recipe_data = {
@@ -1035,14 +1285,20 @@ def add_recipe():
             "instructions": request.form.get('instructions').split('\n'),
             "source": request.form.get('source', 'user')
         }
-        cookbook_manager.add_recipe(recipe_data)
+        agent.cookbook_manager.add_recipe(recipe_data)
         flash("Recipe added!", "success")
         return redirect('/cookbook')
-    return render_template('recipe_form.html', categories=CATEGORIES, proteins=PROTEINS)
+    return render_template('recipe_form.html', categories=CATEGORIES, proteins=PROTEINS, user=current_user)
 
 @app.route('/cookbook/edit/<recipe_id>', methods=['GET', 'POST'])
+@login_required
 def edit_recipe(recipe_id):
+    agent = get_agent()
     from app.core.cookbook_manager import CATEGORIES, PROTEINS
+    
+    if not recipe_id:
+        return redirect('/cookbook')
+
     if request.method == 'POST':
         updates = {
             "name": request.form.get('name'),
@@ -1052,48 +1308,58 @@ def edit_recipe(recipe_id):
             "instructions": request.form.get('instructions').split('\n'),
             "source": request.form.get('source')
         }
-        cookbook_manager.update_recipe(recipe_id, updates)
+        agent.cookbook_manager.update_recipe(recipe_id, updates)
         flash("Recipe updated!", "success")
         return redirect('/cookbook')
     
-    recipe = cookbook_manager.get_recipe(recipe_id)
+    recipe = agent.cookbook_manager.get_recipe(recipe_id)
     if not recipe:
         flash("Recipe not found", "error")
         return redirect('/cookbook')
-    return render_template('recipe_form.html', recipe=recipe, categories=CATEGORIES, proteins=PROTEINS)
+    return render_template('recipe_form.html', recipe=recipe, categories=CATEGORIES, proteins=PROTEINS, user=current_user)
 
 @app.route('/cookbook/delete/<recipe_id>', methods=['POST'])
+@login_required
 def delete_recipe(recipe_id):
-    if cookbook_manager.delete_recipe(recipe_id):
+    agent = get_agent()
+    if agent.cookbook_manager.delete_recipe(recipe_id):
         flash("Recipe deleted.", "success")
     else:
         flash("Error deleting recipe.", "error")
     return redirect('/cookbook')
 
 @app.route('/cookbook/ignored')
+@login_required
 def view_ignored_files():
-    blacklist = cookbook_manager.load_blacklist()
-    return render_template('ignored_files.html', blacklist=blacklist)
+    agent = get_agent()
+    blacklist = agent.cookbook_manager.load_blacklist()
+    return render_template('ignored_files.html', blacklist=blacklist, user=current_user)
 
 @app.route('/cookbook/restore/<path:filename>', methods=['POST'])
+@login_required
 def restore_file(filename):
-    if cookbook_manager.restore_ignored_file(filename):
+    agent = get_agent()
+    if agent.cookbook_manager.restore_ignored_file(filename):
         flash(f"Restored '{filename}'. It will be re-imported on next sync.", "success")
     else:
         flash("Error restoring file.", "error")
     return redirect('/cookbook/ignored')
 
 @app.route('/cookbook/view/<recipe_id>')
+@login_required
 def view_recipe(recipe_id):
-    recipe = cookbook_manager.get_recipe(recipe_id)
+    agent = get_agent()
+    recipe = agent.cookbook_manager.get_recipe(recipe_id)
     if not recipe:
         flash("Recipe not found", "error")
         return redirect('/cookbook')
-    return render_template('recipe_detail.html', recipe=recipe)
+    return render_template('recipe_detail.html', recipe=recipe, user=current_user)
 
 @app.route('/api/cookbook/add_from_plan', methods=['POST'])
+@login_required
 def save_from_plan_api():
     """API endpoint to save a recipe from a plan to the cookbook."""
+    agent = get_agent()
     data = request.json
     if not data or not data.get('name'):
         return jsonify({"status": "error", "message": "Missing recipe data"}), 400
@@ -1107,13 +1373,15 @@ def save_from_plan_api():
             "protein": data.get('protein', 'Vegetarian'),
             "source": "chef"
         }
-        recipe = cookbook_manager.add_recipe(recipe_data)
+        recipe = agent.cookbook_manager.add_recipe(recipe_data)
         return jsonify({"status": "ok", "message": f"Saved {recipe.name} to cookbook!", "id": recipe.id})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/cookbook/rate', methods=['POST'])
+@login_required
 def rate_recipe_endpoint():
+    agent = get_agent()
     data = request.json
     if not data or not data.get('id') or data.get('rating') is None:
         return jsonify({"status": "error", "message": "Missing id or rating"}), 400
@@ -1123,7 +1391,7 @@ def rate_recipe_endpoint():
         if rating < 0 or rating > 5:
              return jsonify({"status": "error", "message": "Rating must be 0-5"}), 400
              
-        if cookbook_manager.rate_recipe(data.get('id'), rating):
+        if agent.cookbook_manager.rate_recipe(data.get('id'), rating):
             return jsonify({"status": "ok", "message": "Rated!"})
         else:
              return jsonify({"status": "error", "message": "Recipe not found"}), 404
@@ -1131,8 +1399,10 @@ def rate_recipe_endpoint():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/cookbook/save_from_plan', methods=['POST'])
+@login_required
 def save_from_plan_form():
     """Form-based version of saving from plan (redirects back)."""
+    agent = get_agent()
     name = request.form.get('name')
     if not name:
         flash("Missing recipe name", "error")
@@ -1151,7 +1421,7 @@ def save_from_plan_form():
             "protein": request.form.get('protein', 'Vegetarian'),
             "source": "chef"
         }
-        cookbook_manager.add_recipe(recipe_data)
+        agent.cookbook_manager.add_recipe(recipe_data)
         flash(f"Saved {name} to your Cookbook!", "success")
     except Exception as e:
         flash(f"Error saving recipe: {str(e)}", "error")
@@ -1159,13 +1429,15 @@ def save_from_plan_form():
     return redirect(request.referrer or '/cookbook')
 
 @app.route('/api/plan/active/rate_meal', methods=['POST'])
+@login_required
 def rate_active_meal():
+    agent = get_agent()
     data = request.json
     date_str = data.get('date')
     meal_type = data.get('meal_type')
     rating = int(data.get('rating', 0))
     
-    active_path = os.path.join(agent.state_dir, 'active_plan.json')
+    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
     if not os.path.exists(active_path):
         return jsonify({"status": "error", "message": "No active plan"}), 404
         
@@ -1180,10 +1452,10 @@ def rate_active_meal():
                 if meal:
                     meal['rating'] = rating
                     # If it's a library recipe, ALSO update the library!
-                    recipes = cookbook_manager.load_recipes()
+                    recipes = agent.cookbook_manager.load_recipes()
                     match = next((r for r in recipes if r['name'].lower() == meal['name'].lower()), None)
                     if match:
-                        cookbook_manager.rate_recipe(match['id'], rating)
+                        agent.cookbook_manager.rate_recipe(match['id'], rating)
         
         with open(active_path, 'w') as f:
             json.dump(plan, f, indent=4)
@@ -1192,25 +1464,17 @@ def rate_active_meal():
     except Exception as e:
          return jsonify({"status": "error", "message": str(e)}), 500
 
-# calendar_manager = CalendarManager(base_dir) # Consolidated into agent.calendar_manager
-
-# --- COOKBOOK INIT (Must be after calendar_manager) ---
 from app.core.cookbook_manager import CookbookManager
-app_config = agent.calendar_manager.load_config()
-cookbook_manager = CookbookManager(base_dir, app_config)
-
-# Run migration on startup
-try:
-    cookbook_manager.initialize() 
-except Exception as e:
-    print(f"Cookbook Init Error: {e}")
+# Removed global manager logic
 
 # ... routes ...
 
 import calendar
 
 @app.route('/api/estimate', methods=['POST'])
+@login_required
 def estimate_cost_endpoint():
+    agent = get_agent()
     try:
         model_id = request.json.get('model_id')
         if not model_id: return jsonify({"error": "No model_id"}), 400
@@ -1285,13 +1549,17 @@ def estimate_cost_endpoint():
          return jsonify({"error": str(e)}), 500
 
 @app.route('/api/test_model', methods=['POST'])
+@login_required
 def test_model_endpoint():
+    agent = get_agent()
     model_id = request.json.get('model_id')
     status, msg = agent.model_manager.test_connection(model_id)
     return jsonify({"status": status, "msg": msg})
 
 @app.route('/settings/core_model', methods=['POST'])
+@login_required
 def update_core_model():
+    agent = get_agent()
     model_id = request.form.get('core_model_id')
     if model_id:
         agent.model_manager.set_core_model(model_id)
@@ -1299,7 +1567,9 @@ def update_core_model():
     return redirect('/settings')
 
 @app.route('/settings/sous_chef_model', methods=['POST'])
+@login_required
 def update_sous_chef_model():
+    agent = get_agent()
     model_id = request.form.get('sous_chef_model_id')
     if model_id:
         agent.model_manager.set_sous_chef_model(model_id)
@@ -1307,7 +1577,9 @@ def update_sous_chef_model():
     return redirect('/settings')
 
 @app.route('/settings/librarian_model', methods=['POST'])
+@login_required
 def update_librarian_model():
+    agent = get_agent()
     model_id = request.form.get('librarian_model_id')
     if model_id:
         agent.model_manager.set_librarian_model(model_id)
@@ -1315,11 +1587,13 @@ def update_librarian_model():
     return redirect('/settings')
 
 @app.route('/calendar/widget')
+@login_required
 def calendar_widget():
     """
     Returns a partial HTML for the calendar widget.
     Accepts 'date' (default: today), 'duration' (default: 4 or from config), and 'view' (default: custom range).
     """
+    agent = get_agent()
     ref_date_str = request.args.get('date')
     duration_str = request.args.get('duration')
     
@@ -1340,16 +1614,10 @@ def calendar_widget():
     else:
         duration = config.get('duration_days', 4)
 
-    # Reuse calendar manager logic from the global agent
-    # We need to manually construct the "Custom Range" view since 'view_mode' logic is fixed.
-    # Let's bypass get_days_for_view for this specific custom requirement or add a helper?
-    # Actually, we can just use the Manager's logic if we update it, OR just replicate the dict construction here using the Manager's methods if they were granular.
-    # Since get_days_for_view is monolithic, let's just create the list manually here for maximum control.
-    
     events = cal_manager.load_calendar()
     days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     
-    # Calculate visual plan window (It matches the requested range exactly)
+    # Calculate visual plan window
     plan_window_dates = [ (ref_date + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(duration) ]
     
     calendar_days = []
@@ -1370,7 +1638,7 @@ def calendar_widget():
             "day_name": day_name,
             "is_today": (date_obj == today),
             "in_month": True, 
-            "in_plan_window": True, # Always true for this widget as we show ONLY the plan
+            "in_plan_window": True, 
             "content": content
         }
         calendar_days.append(day_data)
@@ -1378,13 +1646,16 @@ def calendar_widget():
     return render_template(
         'calendar_partial.html',
         calendar_days=calendar_days,
-        view_mode='custom', # Signal to template
+        view_mode='custom',
         ref_date=ref_date,
-        config=config
+        config=config,
+        user=current_user
     )
 
 @app.route('/settings/models/cost', methods=['POST'])
+@login_required
 def update_model_cost():
+    agent = get_agent()
     model_id = request.form.get('model_id')
     cost_in = request.form.get('cost_in')
     cost_out = request.form.get('cost_out')
@@ -1395,7 +1666,9 @@ def update_model_cost():
     return redirect('/settings')
 
 @app.route('/calendar')
+@login_required
 def calendar_page():
+    agent = get_agent()
     config = agent.calendar_manager.load_config()
     
     # Current Reference Date
@@ -1415,15 +1688,13 @@ def calendar_page():
     # --- VIEW MODE LOGIC ---
     view_mode = request.args.get('view', 'work_week')
 
-    # Get Next Run for Planning Window (Deterministic based on settings)
-    # Always fetch fresh to ensure the view logic matches the "Next Run" display
+    # Get Next Run for Planning Window
     next_run = agent.calendar_manager.get_next_run_dt()
-    print(f"[DEBUG] Calendar Page: next_run={next_run}")
     
     # Get Data from Manager
     calendar_days = agent.calendar_manager.get_days_for_view(ref_date, view_mode, next_run_dt=next_run)
     
-    # Navigation Deltas (Simplified Logic locally or could be in manager too, but fine here)
+    # Navigation Deltas
     if view_mode == 'month':
         next_date = ref_date + timedelta(days=30)
         prev_date = ref_date - timedelta(days=30)
@@ -1455,7 +1726,7 @@ def calendar_page():
     default_start = agent.calendar_manager.get_default_start_date()
     default_start_iso = default_start.strftime("%Y-%m-%d")
 
-    # Identifiers for next 14 days (for settings select labels)
+    # Identifiers for next 14 days
     days_data = []
     base = datetime.now()
     for i in range(14):
@@ -1465,7 +1736,7 @@ def calendar_page():
             "label": f"{d.strftime('%A')} ({d.strftime('%b %d')})"
         })
 
-    # Get Models for Selector (for Generate Plan modal)
+    # Get Models for Selector
     available_models = agent.model_manager.get_available_models()
     current_model = next((m for m in available_models if m.get('is_core')), None)
     if not current_model:
@@ -1490,10 +1761,13 @@ def calendar_page():
                            next_run=format_date_suffix(next_run) if config.get('schedule_enabled', True) and next_run else "OFF",
                            days_data=days_data,
                            models=available_models,
-                           current_model=current_model)
+                           current_model=current_model,
+                           user=current_user)
 
 @app.route('/calendar/settings', methods=['POST'])
+@login_required
 def update_settings():
+    agent = get_agent()
     try:
         # Load existing config to merge
         config = agent.calendar_manager.load_config()
@@ -1522,7 +1796,9 @@ def update_settings():
 
 
 @app.route('/calendar/set_duration', methods=['POST'])
+@login_required
 def set_duration():
+    agent = get_agent()
     try:
         duration = int(request.form.get('duration_days', 7))
         view_mode = request.form.get('view_mode', 'month')
@@ -1539,7 +1815,9 @@ def set_duration():
         return redirect(url_for('calendar_page'))
 
 @app.route('/calendar/toggle_slot', methods=['POST'])
+@login_required
 def toggle_slot():
+    agent = get_agent()
     day = request.form.get('day')
     meal = request.form.get('meal')
     view_mode = request.form.get('view_mode', 'month')
@@ -1563,7 +1841,9 @@ def toggle_slot():
 
 
 @app.route('/api/schedule/settings', methods=['POST'])
+@login_required
 def api_update_schedule_settings():
+    agent = get_agent()
     try:
         data = request.json
         run_day = data.get('run_day')
@@ -1596,7 +1876,9 @@ def api_update_schedule_settings():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/schedule/toggle', methods=['POST'])
+@login_required
 def api_toggle_schedule():
+    agent = get_agent()
     try:
         config = agent.calendar_manager.load_config()
         new_state = not config.get('schedule_enabled', True)
@@ -1607,11 +1889,13 @@ def api_toggle_schedule():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/calendar/toggle', methods=['POST'])
+@login_required
 def api_toggle_slot():
     """
     AJAX endpoint to toggle a meal slot on/off.
     json body: { "day": "Monday", "meal": "breakfast", "date": "optional YYYY-MM-DD" }
     """
+    agent = get_agent()
     data = request.json
     day_name = data.get('day')
     meal_type = data.get('meal')
@@ -1620,7 +1904,6 @@ def api_toggle_slot():
     if not day_name or not meal_type:
         return jsonify({"error": "Missing day or meal"}), 400
         
-    # Reuse CalendarManager
     config = agent.calendar_manager.load_config()
     schedule = config.get('schedule', {})
     
@@ -1635,8 +1918,10 @@ def api_toggle_slot():
     return jsonify({"error": "Invalid day"}), 400
 
 @app.route('/api/ideas', methods=['GET', 'POST'])
+@login_required
 def handle_ideas():
-    ideas_path = os.path.join(agent.state_dir, 'ideas.txt')
+    agent = get_agent()
+    ideas_path = agent.ideas_file
     if request.method == 'POST':
         data = request.json
         ideas = data.get('ideas', '')

@@ -26,9 +26,9 @@ class Recipe(BaseModel):
     rating: int = 0 # 0-5 stars
 
 class CookbookManager:
-    def __init__(self, base_dir, config):
-        self.base_dir = base_dir
-        self.state_dir = os.path.join(base_dir, 'state')
+    def __init__(self, state_dir, config):
+        self.state_dir = state_dir
+        self.base_dir = os.path.dirname(os.path.dirname(state_dir)) # heuristic to find base if needed, or just unused
         self.cookbook_file = os.path.join(self.state_dir, 'cookbook.json')
         
         # Managed Folder Path
@@ -220,6 +220,22 @@ class CookbookManager:
                 self.save_recipes(recipes)
                 print(f"DEBUG: Rated recipe {recipe_id} with {rating} stars.")
                 return True
+        return False
+
+    def update_recipe_rating_by_name(self, name, rating):
+        """Updates rating for a recipe by matching name (fuzzy/exact)."""
+        recipes = self.load_recipes()
+        updated = False
+        name_lower = name.lower().strip()
+        
+        for r in recipes:
+            if r['name'].lower().strip() == name_lower:
+                r['rating'] = rating
+                updated = True
+        
+        if updated:
+            self.save_recipes(recipes)
+            return True
         return False
 
     def delete_recipe(self, recipe_id):

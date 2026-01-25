@@ -8,29 +8,46 @@ from app.core.pdf_manager import PDFManager
 from app.core.inventory_manager import InventoryManager
 from app.core.mailer import Mailer
 from app.core.calendar_manager import CalendarManager
+from app.core.cookbook_manager import CookbookManager
+from app.core.review_manager import ReviewManager
 
 from app.core.schemas import WeeklyPlan, DayPlan, MealDetail, PantryRecommendations
 from app.core.model_manager import ModelManager
 
 class ArbyAgent:
-    def __init__(self, base_dir, original_env=None):
+    def __init__(self, base_dir, user_id):
         self.base_dir = base_dir
-        self.state_dir = os.path.join(base_dir, 'state')
+        self.user_id = user_id
+        # Strict User Isolation
+        self.user_state_dir = os.path.join(base_dir, 'state', 'users', user_id)
+        
+        # Ensure user dir exists (in case created manually or migration lag)
+        os.makedirs(self.user_state_dir, exist_ok=True)
+        
         self.pdf_folder = os.environ.get("PDF_FOLDER")
         
-        self.cookbook_file = os.path.join(self.state_dir, 'cookbook.json')
-        # Initialize Model Manager first so it's available for sub-managers
-        self.model_manager = ModelManager(base_dir=base_dir, original_env=original_env) 
+        self.cookbook_file = os.path.join(self.user_state_dir, 'cookbook.json')
+        
+        # Initialize Model Manager (Shared Config, but could be user-specific later)
+        self.model_manager = ModelManager(base_dir=base_dir, original_env=None) 
         
         self.inventory_manager = InventoryManager(
-            inventory_file=os.path.join(self.state_dir, 'inventory.json'),
+            inventory_file=os.path.join(self.user_state_dir, 'inventory.json'),
             model_manager=self.model_manager
         )
-        self.calendar_manager = CalendarManager(base_dir)
+        self.calendar_manager = CalendarManager(self.user_state_dir)
+        
+        self.cookbook_manager = CookbookManager(self.user_state_dir, config={}) # Config loaded internally or passed if needed
+        self.review_manager = ReviewManager(self.user_state_dir, model_manager=self.model_manager)
+        
         self.mailer = Mailer()
         
-        self.history_file = os.path.join(self.state_dir, 'history.json')
-        self.blacklist_file = os.path.join(self.state_dir, 'blacklist.json')
+        self.history_file = os.path.join(self.user_state_dir, 'history.json')
+        self.blacklist_file = os.path.join(self.user_state_dir, 'blacklist.json')
+        
+        # Ideas and Prefs are also strictly isolated
+        self.ideas_file = os.path.join(self.user_state_dir, 'ideas.txt')
+        self.pref_file = os.path.join(self.user_state_dir, 'preferences.json')
 
     def load_history(self):
         if os.path.exists(self.history_file):
@@ -70,7 +87,7 @@ class ArbyAgent:
     def construct_prompt(self, start_date=None, duration=None):
         """Constructs the system and user prompts based on current state."""
         # Load Preferences
-        pref_path = os.path.join(self.state_dir, 'preferences.json')
+        pref_path = self.pref_file
         prefs = {}
         if os.path.exists(pref_path):
             with open(pref_path, 'r') as f:
@@ -80,7 +97,8 @@ class ArbyAgent:
             "use_inventory": True,
             "use_history": True,
             "use_blacklist": True,
-            "use_ideas": True
+            "use_ideas": True,
+            "use_cookbook": True
         })
         long_term_prefs = prefs.get('long_term_preferences', "No long-term preferences set.")
 
@@ -117,8 +135,8 @@ class ArbyAgent:
         
         # User Context
         user_ideas = "No specific cravings."
-        if data_ctx.get('use_ideas') and os.path.exists(os.path.join(self.state_dir, 'ideas.txt')):
-            with open(os.path.join(self.state_dir, 'ideas.txt'), 'r') as f:
+        if data_ctx.get('use_ideas') and os.path.exists(self.ideas_file):
+            with open(self.ideas_file, 'r') as f:
                 user_ideas = f.read().strip()
                 
         past_meals = "Not provided."
@@ -131,8 +149,8 @@ class ArbyAgent:
             past_meals = json.dumps(self.load_history()[-depth:])
         
         # Cookbook Context
-        cookbook_summary = "No recipes in library."
-        if os.path.exists(self.cookbook_file):
+        cookbook_summary = "Not provided (Disabled in settings)."
+        if data_ctx.get('use_cookbook', True) and os.path.exists(self.cookbook_file):
             try:
                 with open(self.cookbook_file, 'r') as f:
                     cookbook_data = json.load(f)

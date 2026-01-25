@@ -81,8 +81,10 @@
     <div class="space-y-6">
         {% for day in plan.days %}
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <div class="bg-slate-50 px-6 py-4 border-b border-slate-100">
-                <h2 class="text-xl font-bold text-slate-800">{{ day.date }}</h2>
+            <div class="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                <h2 class="text-xl font-bold text-slate-800">{{ day.date | day_name }}</h2>
+                <span class="text-sm font-bold text-slate-400 uppercase tracking-widest">{{ day.date | short_date
+                    }}</span>
             </div>
 
             <div class="divide-y divide-slate-100">
@@ -143,7 +145,8 @@
                             <svg :class="{'rotate-180': open}" class="w-5 h-5 transition-transform" fill="none"
                                 stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 9l-7 7-7-7"></path>
+                                    d="M19 9l-7 7-7-7">
+                                </path>
                             </svg>
                         </div>
                     </div>
@@ -152,10 +155,12 @@
                         style="display: none;">
                         <div class="grid md:grid-cols-2 gap-8">
                             <div>
-                                <h4 class="text-xs font-bold text-slate-400 uppercase mb-3 text-center">Ingredients</h4>
+                                <h4 class="text-xs font-bold text-slate-400 uppercase mb-3 text-center">Ingredients
+                                </h4>
                                 <ul class="space-y-1 text-sm text-slate-600">
                                     {% for ing in meal.ingredients %}
-                                    <li class="flex items-start gap-2"><span class="text-indigo-400 mt-1">•</span>{{ ing
+                                    <li class="flex items-start gap-2"><span class="text-indigo-400 mt-1">•</span>{{
+                                        ing
                                         }}</li>
                                     {% endfor %}
                                 </ul>

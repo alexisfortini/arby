@@ -5,3 +5,5 @@ markdown
 google-genai
 pydantic
 openai
+flask-login
+werkzeug

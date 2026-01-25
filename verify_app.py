@@ -13,13 +13,16 @@ try:
     import app.core.cookbook_manager
     import app.core.inventory_manager
     import app.core.calendar_manager
+    import app.core.user_manager
     
-    print("Checking server module...")
-    # Just import, don't run
-    from app.web import server
+    print("Checking server module syntax...")
+    # This imports the Flask app object and defines routes
+    from app.web.server import app as flask_app
     
     print("✅ Logic Check Passed: No Syntax Errors.")
     sys.exit(0)
 except Exception as e:
+    import traceback
+    traceback.print_exc()
     print(f"❌ Verification Failed: {e}")
     sys.exit(1)
