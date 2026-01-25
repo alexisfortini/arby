@@ -1,20 +1,17 @@
 <!-- Calendar Grid Partial -->
 <!-- Flexible Grid for Custom Range -->
-<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+<div class="grid w-full gap-1.5 p-1" style="grid-template-columns: repeat({{ calendar_days|length }}, minmax(0, 1fr));">
     {% for day in calendar_days %}
     {% set day_config = config.schedule[day.day_name] %}
 
-    <div class="bg-white rounded-xl border border-slate-200 p-3 shadow-sm relative group hover:shadow-md transition-all
-            {% if day.is_today %} ring-2 ring-blue-100 {% endif %}">
+    <div class="bg-white rounded-xl border border-slate-200 px-1.5 py-3 shadow-sm relative group hover:shadow-md transition-all
+            {% if day.is_today %} ring-2 ring-blue-500 {% endif %}">
 
         <div class="flex justify-between items-center mb-3">
             <div class="flex items-center gap-2">
                 <span class="text-xs font-bold uppercase text-slate-500">{{ day.day_name[:3] }}</span>
                 <span class="text-sm font-bold text-slate-800">{{ day.date_num }}</span>
             </div>
-            {% if day.is_today %}
-            <span class="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">TODAY</span>
-            {% endif %}
         </div>
 
         <!-- Meal Slots (Interactive) -->
@@ -47,13 +44,13 @@
                 <!-- ON + EMPTY = PLAN NEEDED -->
                 <div
                     class="h-full w-full rounded-lg bg-green-500 text-white shadow-sm flex items-center justify-center transition-all active:scale-95">
-                    <span class="text-[9px] font-black tracking-wider">BREAKFAST</span>
+                    <span class="text-[8px] font-black tracking-tighter truncate px-0.5">BREAKFAST</span>
                 </div>
                 {% else %}
                 <!-- OFF + EMPTY = SKIP -->
                 <div
                     class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-50 transition-colors">
-                    <span class="text-[8px] font-bold uppercase">SKIP</span>
+                    <span class="text-[7px] font-bold uppercase">SKIP</span>
                 </div>
                 {% endif %}
                 {% endif %}
@@ -82,12 +79,12 @@
                 {% if day_config.lunch %}
                 <div
                     class="h-full w-full rounded-lg bg-green-500 text-white shadow-sm flex items-center justify-center transition-all active:scale-95">
-                    <span class="text-[9px] font-black tracking-wider">LUNCH</span>
+                    <span class="text-[8px] font-black tracking-tighter truncate px-0.5">LUNCH</span>
                 </div>
                 {% else %}
                 <div
                     class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-50 transition-colors">
-                    <span class="text-[8px] font-bold uppercase">SKIP</span>
+                    <span class="text-[7px] font-bold uppercase">SKIP</span>
                 </div>
                 {% endif %}
                 {% endif %}
@@ -116,12 +113,12 @@
                 {% if day_config.dinner %}
                 <div
                     class="h-full w-full rounded-lg bg-green-500 text-white shadow-sm flex items-center justify-center transition-all active:scale-95">
-                    <span class="text-[9px] font-black tracking-wider">DINNER</span>
+                    <span class="text-[8px] font-black tracking-tighter truncate px-0.5">DINNER</span>
                 </div>
                 {% else %}
                 <div
                     class="h-full w-full border border-slate-100 border-dashed rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-50 transition-colors">
-                    <span class="text-[8px] font-bold uppercase">SKIP</span>
+                    <span class="text-[7px] font-bold uppercase">SKIP</span>
                 </div>
                 {% endif %}
                 {% endif %}

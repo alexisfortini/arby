@@ -10,7 +10,7 @@
             <span>🔄</span> <span>Sync PDFs</span>
         </button>
 
-        <a href="/cookbook/add"
+        <a href="/library/add"
             class="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition whitespace-nowrap">
             + Add Recipe
         </a>
@@ -36,7 +36,7 @@
         </button>
     </div>
 
-    <a href="/cookbook/ignored" class="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1">
+    <a href="/library/ignored" class="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1">
         <span>🗑️</span> Manage Ignored Files
     </a>
 </div>
@@ -77,7 +77,7 @@
         </select>
 
         {% if request.args.get('q') or request.args.get('category') or request.args.get('protein') %}
-        <a href="/cookbook"
+        <a href="/library"
             class="flex items-center justify-center bg-slate-100 text-slate-500 hover:text-red-500 px-4 rounded-xl transition">
             ✕
         </a>
@@ -100,7 +100,7 @@
         btn.onclick = cancelSync;
 
         // Trigger Sync
-        fetch('/cookbook/sync', { method: 'POST' })
+        fetch('/library/sync', { method: 'POST' })
             .then(r => r.json())
             .then(data => {
                 // Show progress bar
@@ -115,7 +115,7 @@
     }
 
     function checkStatus() {
-        fetch('/cookbook/sync/status')
+        fetch('/library/sync/status')
             .then(r => r.json())
             .then(status => {
                 updateUI(status);
@@ -135,7 +135,7 @@
     }
 
     function cancelSync() {
-        fetch('/cookbook/sync/cancel', { method: 'POST' })
+        fetch('/library/sync/cancel', { method: 'POST' })
             .then(r => r.json())
             .then(data => {
                 const btn = document.getElementById('syncBtn');
@@ -192,7 +192,7 @@
         const ids = getSelectedIds();
         if (!confirm(`Are you sure you want to delete ${ids.length} recipes?`)) return;
 
-        fetch('/cookbook/batch/delete', {
+        fetch('/library/batch/delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: ids })
@@ -214,7 +214,7 @@
 
         const ids = getSelectedIds();
 
-        fetch('/cookbook/batch/edit', {
+        fetch('/library/batch/edit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: ids, updates: updates })
@@ -272,7 +272,7 @@
             }
         });
 
-        fetch('/api/cookbook/rate', {
+        fetch('/api/library/rate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: id, rating: rating })
@@ -403,7 +403,7 @@
                     </span>
                     {% endif %}
                 </div>
-                <a href="/cookbook/view/{{ recipe.id }}"
+                <a href="/library/view/{{ recipe.id }}"
                     class="text-green-600 font-bold hover:text-green-700 text-sm flex items-center gap-1 group-hover:translate-x-1 transition-transform">
                     View Recipe →
                 </a>
@@ -483,7 +483,7 @@
                         {% endif %}
                     </td>
                     <td class="px-4 py-2 text-right">
-                        <a href="/cookbook/view/{{ recipe.id }}"
+                        <a href="/library/view/{{ recipe.id }}"
                             class="text-green-600 hover:text-green-700 transition-colors font-bold text-xs whitespace-nowrap">
                             Details
                         </a>

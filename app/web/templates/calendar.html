@@ -60,7 +60,7 @@
         <div class="absolute top-4 left-4 flex flex-col gap-1.5">
             <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Horizon</span>
             <div class="flex items-center gap-4 bg-slate-100/50 px-4 py-2.5 rounded-xl border border-slate-100">
-                <input type="range" id="calDurationRange" min="1" max="14" value="{{ duration_days }}"
+                <input type="range" id="calDurationRange" min="1" max="7" value="{{ duration_days }}"
                     class="w-28 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                     oninput="document.getElementById('calDurationDisplay').innerText = this.value"
                     onchange="saveCalSettings()">

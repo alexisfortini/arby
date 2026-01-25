@@ -3,7 +3,7 @@
 {% block content %}
 
 <div class="mb-4">
-    <a href="/cookbook" class="text-slate-500 hover:text-slate-800 text-sm">← Back to Library</a>
+    <a href="/library" class="text-slate-500 hover:text-slate-800 text-sm">← Back to Library</a>
 </div>
 
 <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -28,16 +28,16 @@
             </div>
             <div class="flex space-x-2 mt-4 md:mt-0">
                 {% if recipe.source == 'pdf' and recipe.filename %}
-                <a href="/cookbook/pdf/{{ recipe.filename }}" target="_blank"
+                <a href="/library/pdf/{{ recipe.filename }}" target="_blank"
                     class="bg-red-50 text-red-600 px-4 py-2 rounded-lg font-medium hover:bg-red-100 transition">
                     View Original PDF
                 </a>
                 {% endif %}
-                <a href="/cookbook/edit/{{ recipe.id }}"
+                <a href="/library/edit/{{ recipe.id }}"
                     class="bg-slate-100 text-slate-600 px-4 py-2 rounded-lg font-medium hover:bg-slate-200 transition">
                     Edit
                 </a>
-                <form action="/cookbook/delete/{{ recipe.id }}" method="POST"
+                <form action="/library/delete/{{ recipe.id }}" method="POST"
                     onsubmit="return confirm('Delete this recipe? This cannot be undone.');">
                     <button type="submit"
                         class="bg-white border border-red-200 text-red-500 px-4 py-2 rounded-lg font-medium hover:bg-red-50 transition">
@@ -101,7 +101,7 @@
             btn.classList.toggle('text-slate-300', val > rating);
         });
 
-        fetch('/api/cookbook/rate', {
+        fetch('/api/library/rate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: id, rating: rating })

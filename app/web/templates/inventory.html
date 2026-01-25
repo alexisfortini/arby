@@ -10,7 +10,7 @@
 <!-- Quick Add Form -->
 <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 mb-6">
     <label class="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-3">Quick Add</label>
-    <form action="/inventory/add" method="POST">
+    <form action="/pantry/add" method="POST">
         <textarea name="ingredients" rows="2"
             class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 mb-3"
             placeholder="e.g. Bought a bag of rice, 3 avocados, and some milk."></textarea>
@@ -149,8 +149,8 @@
         const index = el.getAttribute('data-index');
         const item = JSON.parse(el.getAttribute('data-item'));
 
-        document.getElementById('editForm').action = '/inventory/edit/' + index;
-        document.getElementById('deleteForm').action = '/inventory/delete/' + index;
+        document.getElementById('editForm').action = '/pantry/edit/' + index;
+        document.getElementById('deleteForm').action = '/pantry/delete/' + index;
 
         document.getElementById('modal_item').value = item.item;
         document.getElementById('modal_brand').value = item.brand || '';
@@ -178,7 +178,7 @@
         const badge = document.getElementById('qty-' + index);
         const unit = badge.innerText.split(' ').slice(1).join(' ');
 
-        fetch('/inventory/increment/' + index, { method: 'POST' })
+        fetch('/pantry/increment/' + index, { method: 'POST' })
             .then(r => r.json())
             .then(data => {
                 if (data.status === 'ok') {

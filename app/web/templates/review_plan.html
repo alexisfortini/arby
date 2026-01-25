@@ -221,7 +221,7 @@
         if (!confirm('Save "' + meal.name + '" to your cookbook library?')) return;
 
         try {
-            const response = await fetch('/api/cookbook/add_from_plan', {
+            const response = await fetch('/api/library/add_from_plan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(meal)
