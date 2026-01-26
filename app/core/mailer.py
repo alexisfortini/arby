@@ -6,10 +6,11 @@ import os
 import markdown
 
 class Mailer:
-    def __init__(self):
-        self.sender = os.environ.get("EMAIL_SENDER")
-        self.password = os.environ.get("EMAIL_PASSWORD")
-        self.receiver = os.environ.get("EMAIL_RECEIVER")
+    def __init__(self, config=None):
+        self.config = config or {}
+        self.sender = self.config.get("EMAIL_SENDER") or os.environ.get("EMAIL_SENDER")
+        self.password = self.config.get("EMAIL_PASSWORD") or os.environ.get("EMAIL_PASSWORD")
+        self.receivers = self.config.get("EMAIL_RECEIVER") or os.environ.get("EMAIL_RECEIVER")
     
     def send_detailed_plan(self, plan_dict):
         if not self.sender or not self.password:
@@ -79,7 +80,10 @@ class Mailer:
         msg = MIMEMultipart('alternative')
         msg['Subject'] = f"Arby Menu: {datetime.now().strftime('%b %d')} - Recipes Included"
         msg['From'] = self.sender
-        msg['To'] = self.receiver
+        
+        # Handle multiple receivers
+        receiver_list = [r.strip() for r in self.receivers.split(',')] if self.receivers else []
+        msg['To'] = ", ".join(receiver_list)
 
         part2 = MIMEText(html_content, 'html')
         msg.attach(part2)
@@ -87,7 +91,7 @@ class Mailer:
         try:
             with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp_server:
                 smtp_server.login(self.sender, self.password)
-                smtp_server.sendmail(self.sender, self.receiver, msg.as_string())
+                smtp_server.sendmail(self.sender, receiver_list, msg.as_string())
             print("Detailed Email sent successfully!")
         except Exception as e:
             print(f"Failed to send email: {e}")

@@ -161,9 +161,10 @@ class AnthropicProvider:
 
 
 class ModelManager:
-    def __init__(self, config=None, base_dir=None, original_env=None):
+    def __init__(self, config=None, base_dir=None, original_env=None, user_keys=None):
         self.config = config or {}
         self.original_env = original_env
+        self.user_keys = user_keys or {}
         # We need base_dir to save state. In server.py we pass config, but here we need path.
         # We'll infer state dir or assume passed in config, or use environment.
         # Ideally ArbyAgent passes base_dir. 
@@ -174,8 +175,14 @@ class ModelManager:
         self.base_dir = base_dir or os.getcwd()
         self.config_path = os.path.join(self.base_dir, 'state', 'model_config.json')
         
-        # Load keys from Env - prioritize current but fallback to original if shadowed or pointer
-        def get_initial(name):
+        # Load keys - User Preferences > Current Env > Fallback Env
+        def get_initial(name, user_key_type):
+            # 1. User Preference
+            val = self.user_keys.get(user_key_type)
+            if val:
+                return val
+
+            # 2. System Environment
             val = os.environ.get(name)
             if not val or val == f"${{{name}}}": # Detect self-referencing shadow
                 if self.original_env and name in self.original_env:
@@ -183,10 +190,10 @@ class ModelManager:
             return val
 
         self.keys = {
-            "google": get_initial("GEMINI_API_KEY"),
-            "openai": get_initial("OPENAI_API_KEY"),
-            "anthropic": get_initial("ANTHROPIC_API_KEY"),
-            "xai": get_initial("XAI_API_KEY"),
+            "google": get_initial("GEMINI_API_KEY", "google"),
+            "openai": get_initial("OPENAI_API_KEY", "openai"),
+            "anthropic": get_initial("ANTHROPIC_API_KEY", "anthropic"),
+            "xai": get_initial("XAI_API_KEY", "xai"),
         }
         
         self.providers = {}
@@ -208,11 +215,17 @@ class ModelManager:
         if self.keys["anthropic"]:
             resolved = self._resolve_key(self.keys["anthropic"])
             if resolved:
-                self.providers["anthropic"] = AnthropicProvider(resolved)
+                try:
+                    self.providers["anthropic"] = AnthropicProvider(resolved)
+                except Exception as e:
+                    print(f"Error initializing Anthropic Provider: {e}")
         if self.keys["xai"]:
             resolved = self._resolve_key(self.keys["xai"])
             if resolved:
-                self.providers["xai"] = OpenAIProvider(resolved, base_url="https://api.x.ai/v1")
+                try:
+                    self.providers["xai"] = OpenAIProvider(resolved, base_url="https://api.x.ai/v1")
+                except Exception as e:
+                    print(f"Error initializing xAI Provider: {e}")
 
     def _resolve_key(self, key_string):
         if not key_string:

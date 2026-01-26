@@ -253,6 +253,16 @@ def index():
         with open(pref_path, 'r') as f:
             prefs = json.load(f)
 
+    # Defaults to prevent Jinja errors
+    if 'data_context' not in prefs:
+        prefs['data_context'] = {
+            "use_inventory": True,
+            "use_history": True,
+            "use_ideas": True
+        }
+    if 'email_settings' not in prefs:
+        prefs['email_settings'] = {}
+
     return render_template('index.html', 
                            next_run=next_run_str, 
                            last_run=last_run, 
@@ -281,62 +291,45 @@ def settings_page():
     agent = get_agent()
 
     if request.method == 'POST':
-        # Update .env file safely
-        env_path = os.path.join(base_dir, '.env')
+        # Now saving API keys to user-specific prefs.json instead of global .env
         keys_to_update = {
-            "GEMINI_API_KEY": request.form.get("gemini_key"),
-            "OPENAI_API_KEY": request.form.get("openai_key"),
-            "ANTHROPIC_API_KEY": request.form.get("anthropic_key"),
-            "XAI_API_KEY": request.form.get("xai_key"),
+            "google": request.form.get("gemini_key"),
+            "openai": request.form.get("openai_key"),
+            "anthropic": request.form.get("anthropic_key"),
+            "xai": request.form.get("xai_key"),
         }
         
         try:
-            # Read existing
-            with open(env_path, 'r') as f:
-                lines = f.readlines()
+            pref_path = agent.pref_file
+            prefs = {}
+            if os.path.exists(pref_path):
+                with open(pref_path, 'r') as f:
+                    prefs = json.load(f)
             
-            new_lines = []
-            updated_keys = set()
-            
-            for line in lines:
-                key_match = None
-                for k, v in keys_to_update.items():
-                    # Matches "KEY=", "KEY =", "KEY  =" etc.
-                    if re.match(rf'^\s*{k}\s*=', line):
-                        if v and v.strip() != "***": # Only update if provided and not masked
-                             # Check if it's a known non-empty variable in ORIGINAL or CURRENT env
-                             is_pointer = False
-                             if (original_env and v in original_env and original_env[v]) or (os.environ.get(v)):
-                                 is_pointer = True
-                             
-                             if is_pointer:
-                                 v = f'${{{v}}}'
-                             new_lines.append(f'{k}="{v}"\n')
-                        else:
-                             new_lines.append(line) # Keep existing
-                        updated_keys.add(k)
-                        key_match = True
-                        break
-                
-                if not key_match:
-                    new_lines.append(line)
+            if 'api_keys' not in prefs:
+                prefs['api_keys'] = {}
             
             for k, v in keys_to_update.items():
-                if k not in updated_keys and v and v.strip() != "***":
+                if v and v.strip() != "***":
+                    val = v.strip()
+                    # Check if it's a pointer to an env var (User wants to use system env for themselves)
                     is_pointer = False
-                    if (original_env and v in original_env and original_env[v]) or (os.environ.get(v)):
-                         is_pointer = True
+                    # Check if it matches an env var in current or original env
+                    if (original_env and val in original_env and original_env[val]) or (os.environ.get(val)):
+                        is_pointer = True
                     
-                    if is_pointer:
-                        v = f'${{{v}}}'
-                    new_lines.append(f'{k}="{v}"\n')
+                    if is_pointer and not val.startswith("${"):
+                        val = f'${{{val}}}'
+                    
+                    prefs['api_keys'][k] = val
+                elif v == "": # User explicitly cleared it (will now fallback to system)
+                    if k in prefs['api_keys']:
+                        del prefs['api_keys'][k]
             
-            with open(env_path, 'w') as f:
-                f.writelines(new_lines)
-            
-            # Reload Env to update process state for next requests
-            load_dotenv(env_path, override=True)
-            flash("Settings updated! Models unlocked based on new keys.", "success")
+            with open(pref_path, 'w') as f:
+                json.dump(prefs, f, indent=4)
+                
+            flash("Settings updated! API keys are now stored in your private preferences.", "success")
         except Exception as e:
             flash(f"Error saving settings: {e}", "error")
         return redirect('/settings')
@@ -359,29 +352,40 @@ def settings_page():
             "use_history": True,
             "use_ideas": True
         }
+    if 'email_settings' not in prefs:
+        prefs['email_settings'] = {}
 
-    # API Key Context for UI - Read RAW from .env to see pointers
+    # API Key Context for UI
+    system_env = {}
     env_path = os.path.join(base_dir, '.env')
-    raw_env = {}
     if os.path.exists(env_path):
         with open(env_path, 'r') as f:
             for line in f:
                 if '=' in line and not line.startswith('#'):
                     k, v = line.split('=', 1)
-                    raw_env[k.strip()] = v.strip().strip('"').strip("'")
+                    system_env[k.strip()] = v.strip().strip('"').strip("'")
     
-    key_map = {
-        "gemini": raw_env.get("GEMINI_API_KEY", ""),
-        "openai": raw_env.get("OPENAI_API_KEY", ""),
-        "anthropic": raw_env.get("ANTHROPIC_API_KEY", ""),
-        "xai": raw_env.get("XAI_API_KEY", ""),
+    key_types = {
+        "gemini": "GEMINI_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "xai": "XAI_API_KEY",
     }
     
+    user_keys = prefs.get('api_keys', {})
     display_keys = {}
-    for k, v in key_map.items():
-        # A pointer is either "VAR" or "${VAR}"
-        pure_var = v
-        match = re.search(r'\$\{(.+?)\}', v)
+    
+    for k, env_name in key_types.items():
+        user_val = user_keys.get(k)
+        system_val = system_env.get(env_name, "")
+        
+        # Determine source and value
+        source = "User Specific" if user_val else "System Default"
+        raw_val = user_val if user_val else system_val
+        
+        # Resolve pointer logic
+        pure_var = raw_val
+        match = re.search(r'\$\{(.+?)\}', raw_val)
         if match:
             pure_var = match.group(1)
         
@@ -393,16 +397,17 @@ def settings_page():
              is_pointer_style = False # Likely a raw Gemini key
         
         is_pointer = is_env_present or is_pointer_style
-        resolved = agent.model_manager._resolve_key(v)
+        resolved = agent.model_manager._resolve_key(raw_val)
         
         status_msg = ""
         if is_pointer and not resolved:
-            status_msg = "Pointer not found in system env"
+            status_msg = f"Pointer '{pure_var}' not found"
         
         display_keys[k] = {
-            "val": pure_var if is_pointer else ("***" if v else ""),
+            "val": pure_var if (is_pointer or not raw_val) else "***",
             "active": bool(resolved),
-            "status": status_msg
+            "status": status_msg,
+            "source": source if raw_val else None
         }
 
     return render_template('settings.html', 
@@ -455,6 +460,114 @@ def update_preferences():
         
     flash("Chef's Brain updated!", "success")
     return redirect('/settings?tab=data')
+
+@app.route('/settings/data/delete', methods=['POST'])
+@login_required
+def delete_data():
+    agent = get_agent()
+    target = request.form.get('target')
+    
+    try:
+        if target == 'pantry':
+             agent.inventory_manager.save_inventory([])
+             flash("Pantry has been cleared.", "success")
+        elif target == 'library':
+             # Clear recipes file
+             with open(agent.cookbook_manager.recipes_file, 'w') as f:
+                 json.dump([], f)
+             flash("Library has been cleared.", "success")
+        elif target == 'history':
+             agent.save_history([])
+             flash("Meal history has been cleared.", "success")
+        elif target == 'all':
+             agent.inventory_manager.save_inventory([])
+             with open(agent.cookbook_manager.recipes_file, 'w') as f:
+                 json.dump([], f)
+             agent.save_history([])
+             # Clear Ideas too
+             with open(agent.ideas_file, 'w') as f:
+                 f.write("")
+             flash("ALL data has been wiped.", "success")
+        else:
+            flash("Invalid deletion target.", "error")
+            
+    except Exception as e:
+        flash(f"Deletion failed: {e}", "error")
+        
+    return redirect('/settings?tab=data')
+
+@app.route('/settings/account/update', methods=['POST'])
+@login_required
+def update_account():
+    name = request.form.get('name')
+    email = request.form.get('email')
+    password = request.form.get('password')
+    
+    if not name or not email:
+        flash("Name and Email are required.", "error")
+        return redirect('/settings?tab=account')
+        
+    user, error = user_manager.update_user(current_user.id, name=name, email=email, password=password if password else None)
+    
+    if error:
+        flash(error, "error")
+    else:
+        # Re-login with updated user object
+        login_user(user)
+        flash("Account details updated successfully!", "success")
+        
+    return redirect('/settings?tab=account')
+
+@app.route('/settings/account/delete', methods=['POST'])
+@login_required
+def delete_account():
+    confirmation = request.form.get('confirmation')
+    if confirmation != 'DELETE':
+         flash("Please type DELETE to confirm account deletion.", "error")
+         return redirect('/settings?tab=account')
+         
+    success = user_manager.delete_user(current_user.id)
+    if success:
+        logout_user()
+        flash("Your account has been permanently deleted.", "success")
+        return redirect('/')
+    else:
+        flash("Failed to delete account.", "error")
+        return redirect('/settings?tab=account')
+
+@app.route('/settings/notifications', methods=['POST'])
+@login_required
+def update_notifications():
+    agent = get_agent()
+    pref_path = agent.pref_file
+    
+    prefs = {}
+    if os.path.exists(pref_path):
+        with open(pref_path, 'r') as f:
+            prefs = json.load(f)
+            
+    raw_sender = request.form.get('sender_email', '').strip()
+    raw_pass = request.form.get('app_password', '').strip()
+    
+    def auto_pointer(val):
+        if not val: return val
+        # Check if matches env var
+        if (original_env and val in original_env and original_env[val]) or (os.environ.get(val)):
+            if not val.startswith("${"):
+                return f"${{{val}}}"
+        return val
+
+    prefs['email_settings'] = {
+        "sender": auto_pointer(raw_sender),
+        "password": auto_pointer(raw_pass),
+        "receivers": request.form.get('receiver_emails')
+    }
+    
+    with open(pref_path, 'w') as f:
+        json.dump(prefs, f, indent=4)
+        
+    flash("Notification settings updated! Pointers resolved if used.", "success")
+    return redirect('/settings?tab=notifications')
 
 @app.route('/settings/models/add', methods=['POST'])
 @login_required

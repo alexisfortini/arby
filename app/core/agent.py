@@ -28,8 +28,22 @@ class ArbyAgent:
         
         self.cookbook_file = os.path.join(self.user_state_dir, 'cookbook.json')
         
-        # Initialize Model Manager (Shared Config, but could be user-specific later)
-        self.model_manager = ModelManager(base_dir=base_dir, original_env=None) 
+        # Ideas and Prefs are also strictly isolated
+        self.ideas_file = os.path.join(self.user_state_dir, 'ideas.txt')
+        self.pref_file = os.path.join(self.user_state_dir, 'preferences.json')
+
+        # Load Prefs early for Model Manager
+        user_keys = {}
+        if os.path.exists(self.pref_file):
+            try:
+                with open(self.pref_file, 'r') as f:
+                    prefs = json.load(f)
+                    user_keys = prefs.get('api_keys', {})
+            except:
+                pass
+
+        # Initialize Model Manager (User-Specific Keys)
+        self.model_manager = ModelManager(base_dir=base_dir, original_env=None, user_keys=user_keys) 
         
         self.inventory_manager = InventoryManager(
             inventory_file=os.path.join(self.user_state_dir, 'inventory.json'),
@@ -40,14 +54,21 @@ class ArbyAgent:
         self.cookbook_manager = CookbookManager(self.user_state_dir, config={}) # Config loaded internally or passed if needed
         self.review_manager = ReviewManager(self.user_state_dir, model_manager=self.model_manager)
         
-        self.mailer = Mailer()
+        # Prepare Mailer with User-Specific Settings
+        email_config = prefs.get('email_settings', {})
+        
+        def resolve(val):
+            return self.model_manager._resolve_key(val) if val else val
+
+        mailer_config = {
+            "EMAIL_SENDER": resolve(email_config.get('sender')),
+            "EMAIL_PASSWORD": resolve(email_config.get('password')),
+            "EMAIL_RECEIVER": email_config.get('receivers') # Receivers don't usually need pointer resolving
+        }
+        self.mailer = Mailer(config=mailer_config)
         
         self.history_file = os.path.join(self.user_state_dir, 'history.json')
         self.blacklist_file = os.path.join(self.user_state_dir, 'blacklist.json')
-        
-        # Ideas and Prefs are also strictly isolated
-        self.ideas_file = os.path.join(self.user_state_dir, 'ideas.txt')
-        self.pref_file = os.path.join(self.user_state_dir, 'preferences.json')
 
     def load_history(self):
         if os.path.exists(self.history_file):

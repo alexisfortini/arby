@@ -101,3 +101,39 @@ class UserManager:
         if user and check_password_hash(user.password_hash, password):
             return user
         return None
+
+    def update_user(self, user_id, name=None, email=None, password=None):
+        users = self.load_users()
+        user_idx = next((i for i, u in enumerate(users) if u.id == user_id), -1)
+        
+        if user_idx == -1:
+            return None, "User not found"
+            
+        user = users[user_idx]
+        
+        if name:
+            user.name = name
+        if email:
+            # Check for email conflict
+            existing = self.get_user_by_email(email)
+            if existing and existing.id != user_id:
+                return None, "Email already in use"
+            user.email = email
+        if password:
+            user.password_hash = generate_password_hash(password)
+            
+        users[user_idx] = user
+        self.save_users(users)
+        return user, None
+
+    def delete_user(self, user_id):
+        users = self.load_users()
+        users = [u for u in users if u.id != user_id]
+        self.save_users(users)
+        
+        # Delete User Directory
+        user_path = os.path.join(self.users_dir, user_id)
+        if os.path.exists(user_path):
+            shutil.rmtree(user_path)
+            
+        return True
