@@ -34,6 +34,7 @@ class ArbyAgent:
 
         # Load Prefs early for Model Manager
         user_keys = {}
+        prefs = {}
         if os.path.exists(self.pref_file):
             try:
                 with open(self.pref_file, 'r') as f:

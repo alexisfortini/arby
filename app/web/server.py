@@ -55,7 +55,7 @@ def inject_version():
     except:
         git_hash = "local"
         
-    return dict(app_version="v1.0.4", git_hash=git_hash)
+    return dict(app_version="v1.0.6", git_hash=git_hash)
 
 # --- DYNAMIC AGENT HELPER ---
 def get_agent():
@@ -258,10 +258,23 @@ def index():
         prefs['data_context'] = {
             "use_inventory": True,
             "use_history": True,
-            "use_ideas": True
+            "use_ideas": True,
+            "use_cookbook": True
         }
+    else:
+        # Fill in missing sub-keys if it was partially defined
+        for k, v in {"use_inventory": True, "use_history": True, "use_ideas": True, "use_cookbook": True}.items():
+            if k not in prefs['data_context']:
+                prefs['data_context'][k] = v
+
     if 'email_settings' not in prefs:
         prefs['email_settings'] = {}
+    
+    if 'history_depth' not in prefs:
+        prefs['history_depth'] = 50
+    
+    if 'long_term_preferences' not in prefs:
+        prefs['long_term_preferences'] = ""
 
     return render_template('index.html', 
                            next_run=next_run_str, 
@@ -350,10 +363,22 @@ def settings_page():
         prefs['data_context'] = {
             "use_inventory": True,
             "use_history": True,
-            "use_ideas": True
+            "use_ideas": True,
+            "use_cookbook": True
         }
+    else:
+        for k, v in {"use_inventory": True, "use_history": True, "use_ideas": True, "use_cookbook": True}.items():
+            if k not in prefs['data_context']:
+                prefs['data_context'][k] = v
+
     if 'email_settings' not in prefs:
         prefs['email_settings'] = {}
+        
+    if 'history_depth' not in prefs:
+        prefs['history_depth'] = 50
+        
+    if 'long_term_preferences' not in prefs:
+        prefs['long_term_preferences'] = ""
 
     # API Key Context for UI
     system_env = {}
