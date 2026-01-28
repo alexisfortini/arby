@@ -104,6 +104,15 @@ function start() {
             exit 1
         fi
 
+        # Optional Data Sync before backgrounding
+        if [ -f "$DIR/sync_data.sh" ]; then
+            echo -e "${BLUE}${BOLD}🔄 Data Sync:${NC}"
+            read -p "   Pull latest data from GCP? (y/n): " PULL
+            if [[ "$PULL" == "y"* ]]; then
+                bash "$DIR/sync_data.sh" pull
+            fi
+        fi
+
         echo -e "🚀 ${BOLD}Starting Arby in background...${NC}"
         
         # We run run_arby.sh in the background

@@ -15,9 +15,10 @@ from app.core.schemas import WeeklyPlan, DayPlan, MealDetail, PantryRecommendati
 from app.core.model_manager import ModelManager
 
 class ArbyAgent:
-    def __init__(self, base_dir, user_id):
+    def __init__(self, base_dir, user_id, original_env=None):
         self.base_dir = base_dir
         self.user_id = user_id
+        self.original_env = original_env
         # Strict User Isolation
         self.user_state_dir = os.path.join(base_dir, 'state', 'users', user_id)
         
@@ -38,13 +39,17 @@ class ArbyAgent:
         if os.path.exists(self.pref_file):
             try:
                 with open(self.pref_file, 'r') as f:
-                    prefs = json.load(f)
-                    user_keys = prefs.get('api_keys', {})
-            except:
-                pass
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        prefs = data
+                        user_keys = prefs.get('api_keys', {})
+                    else:
+                        print(f"DEBUG: Prefs file {self.pref_file} is not a dict.")
+            except Exception as e:
+                print(f"DEBUG: Error loading prefs at {self.pref_file}: {e}")
 
         # Initialize Model Manager (User-Specific Keys)
-        self.model_manager = ModelManager(base_dir=base_dir, original_env=None, user_keys=user_keys) 
+        self.model_manager = ModelManager(base_dir=base_dir, user_id=self.user_id, original_env=self.original_env, user_keys=user_keys) 
         
         self.inventory_manager = InventoryManager(
             inventory_file=os.path.join(self.user_state_dir, 'inventory.json'),
@@ -73,8 +78,14 @@ class ArbyAgent:
 
     def load_history(self):
         if os.path.exists(self.history_file):
-            with open(self.history_file, 'r') as f:
-                return json.load(f)
+            try:
+                with open(self.history_file, 'r') as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        return data
+                    print(f"DEBUG: History file {self.history_file} is not a list.")
+            except Exception as e:
+                print(f"DEBUG: Error loading history at {self.history_file}: {e}")
         return []
 
     def save_history(self, plan_dict):
@@ -244,7 +255,7 @@ class ArbyAgent:
             model_id = self.model_manager.get_core_model_id()
             
         try:
-            return self.model_manager.generate_plan(
+            return self.model_manager.generate(
                 model_id=model_id,
                 system_instruction=system_instruction,
                 user_prompt=user_prompt
@@ -291,7 +302,7 @@ class ArbyAgent:
             model_id = self.model_manager.get_core_model_id()
             
         try:
-            return self.model_manager.generate_plan(
+            return self.model_manager.generate(
                 model_id=model_id,
                 system_instruction=system_instruction,
                 user_prompt=user_prompt
@@ -377,7 +388,7 @@ class ArbyAgent:
             # Use the Sous Chef model if set
             model_id = self.model_manager.get_sous_chef_model_id()
             
-            result = self.model_manager.generate_plan(
+            result = self.model_manager.generate(
                 model_id=model_id,
                 system_instruction=system_instruction,
                 user_prompt=user_prompt,

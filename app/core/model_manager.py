@@ -2,6 +2,14 @@ import os
 import json
 import time
 import google.genai as genai
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
+try:
+    from anthropic import Anthropic
+except ImportError:
+    Anthropic = None
 from app.core.schemas import WeeklyPlan
 
 # --- PROVIER WRAPPERS ---
@@ -11,11 +19,8 @@ class GeminiProvider:
         self.client = genai.Client(api_key=api_key)
 
     def ping(self, model_id):
-        # Simple text generation to verify access
-        # Since 'generate_content' is standard, we use it without response_schema
-        # But we need to be careful with models that enforce tool use or specific modes?
-        # Usually flash/pro handle text fine.
         try:
+            print(f"DEBUG: Pinging Gemini model {model_id}...")
             self.client.models.generate_content(
                 model=model_id,
                 contents="Hello",
@@ -23,6 +28,7 @@ class GeminiProvider:
             )
             return True
         except Exception as e:
+            print(f"DEBUG: Gemini Ping Failed: {e}")
             raise e
 
     def generate(self, model_id, system_instruction, user_prompt, files=None, schema=WeeklyPlan):
@@ -38,7 +44,8 @@ class GeminiProvider:
             config=genai.types.GenerateContentConfig(
                 system_instruction=system_instruction,
                 response_mime_type="application/json",
-                response_schema=schema
+                response_schema=schema,
+                max_output_tokens=8192
             )
         )
         if response.parsed:
@@ -58,18 +65,27 @@ class GeminiProvider:
 
 class OpenAIProvider:
     def __init__(self, api_key, base_url=None):
-        from openai import OpenAI
+        if not OpenAI:
+            raise ImportError("The 'openai' Python library is not installed.")
         self.client = OpenAI(api_key=api_key, base_url=base_url)
 
     def ping(self, model_id):
         try:
-            self.client.chat.completions.create(
-                model=model_id,
-                messages=[{"role": "user", "content": "Reply OK"}],
-                max_tokens=5
-            )
+            print(f"DEBUG: Pinging OpenAI model {model_id}...")
+            # Newer models (o1, o3, o4, gpt-5) use max_completion_tokens
+            params = {
+                "model": model_id,
+                "messages": [{"role": "user", "content": "Reply OK"}]
+            }
+            if model_id.startswith(("o1", "o3", "o4", "gpt-5")):
+                params["max_completion_tokens"] = 5
+            else:
+                params["max_tokens"] = 5
+                
+            self.client.chat.completions.create(**params)
             return True
         except Exception as e:
+            print(f"DEBUG: OpenAI Ping Failed: {e}")
             raise e
 
     def generate(self, model_id, system_instruction, user_prompt, files=None, schema=WeeklyPlan):
@@ -101,18 +117,26 @@ class OpenAIProvider:
 
 class AnthropicProvider:
     def __init__(self, api_key):
-        from anthropic import Anthropic
+        if not Anthropic:
+            raise ImportError("The 'anthropic' Python library is not installed.")
         self.client = Anthropic(api_key=api_key)
 
     def ping(self, model_id):
         try:
-            self.client.messages.create(
+            print(f"DEBUG: Pinging Anthropic model {model_id}...")
+            if not self.client:
+                print("DEBUG: Anthropic client is NONE!")
+                raise Exception("Anthropic client is not initialized.")
+            
+            resp = self.client.messages.create(
                 model=model_id,
                 max_tokens=10,
                 messages=[{"role": "user", "content": "Reply OK"}]
             )
+            print(f"DEBUG: Anthropic Ping SUCCESS: {resp.id}")
             return True
         except Exception as e:
+            print(f"DEBUG: Anthropic Ping Failed: {e}")
             raise e
 
     def generate(self, model_id, system_instruction, user_prompt, files=None, schema=WeeklyPlan):
@@ -127,9 +151,13 @@ class AnthropicProvider:
         }]
 
         try:
+            print(f"DEBUG: Calling Anthropic model {model_id}...")
+            print(f"DEBUG: System Instruction Length: {len(system_instruction)}")
+            print(f"DEBUG: User Prompt Length: {len(user_prompt)}")
+
             message = self.client.messages.create(
                 model=model_id,
-                max_tokens=4096,
+                max_tokens=8192,
                 system=system_instruction,
                 tools=tools,
                 tool_choice={"type": "tool", "name": tool_name},
@@ -137,6 +165,8 @@ class AnthropicProvider:
                     {"role": "user", "content": user_prompt}
                 ]
             )
+            
+            print(f"DEBUG: Anthropic Response received. Stop Reason: {message.stop_reason}")
             
             # Extract tool use
             for content in message.content:
@@ -146,7 +176,8 @@ class AnthropicProvider:
             raise Exception("Anthropic did not use the tool.")
             
         except Exception as e:
-             raise Exception(f"Anthropic Generation Error: {e}")
+            print(f"DEBUG: Anthropic Generation Error: {e}")
+            raise Exception(f"Anthropic Generation Error: {e}")
 
     def simple_generate(self, model_id, system_instruction, user_prompt):
         message = self.client.messages.create(
@@ -161,19 +192,19 @@ class AnthropicProvider:
 
 
 class ModelManager:
-    def __init__(self, config=None, base_dir=None, original_env=None, user_keys=None):
+    def __init__(self, config=None, base_dir=None, user_id=None, original_env=None, user_keys=None):
         self.config = config or {}
         self.original_env = original_env
         self.user_keys = user_keys or {}
-        # We need base_dir to save state. In server.py we pass config, but here we need path.
-        # We'll infer state dir or assume passed in config, or use environment.
-        # Ideally ArbyAgent passes base_dir. 
-        # For now, let's look for known path or use relative to file.
-        # Better: let's expect base_dir passed in. `server.py` instantiates `ArbyAgent` which instantiates `ModelManager`.
-        # I'll update Agent to pass base_dir to ModelManager.
+        self.user_id = user_id
         
         self.base_dir = base_dir or os.getcwd()
-        self.config_path = os.path.join(self.base_dir, 'state', 'model_config.json')
+        
+        # User-Specific model config (Strict Isolation)
+        if self.user_id:
+            self.config_path = os.path.join(self.base_dir, 'state', 'users', self.user_id, 'model_config.json')
+        else:
+            self.config_path = os.path.join(self.base_dir, 'state', 'model_config.json')
         
         # Load keys - User Preferences > Current Env > Fallback Env
         def get_initial(name, user_key_type):
@@ -189,6 +220,7 @@ class ModelManager:
                     return self.original_env[name]
             return val
 
+        # Load keys - User Preferences > System Env > Fallback Env
         self.keys = {
             "google": get_initial("GEMINI_API_KEY", "google"),
             "openai": get_initial("OPENAI_API_KEY", "openai"),
@@ -196,36 +228,27 @@ class ModelManager:
             "xai": get_initial("XAI_API_KEY", "xai"),
         }
         
+        # Initialize Providers
         self.providers = {}
-        if self.keys["google"]:
-            resolved = self._resolve_key(self.keys["google"])
-            if resolved:
-                try:
+        for provider_name, key_val in self.keys.items():
+            if not key_val:
+                continue
+            
+            resolved = self._resolve_key(key_val)
+            if not resolved:
+                continue
+                
+            try:
+                if provider_name == "google":
                     self.providers["google"] = GeminiProvider(resolved)
-                except Exception as e:
-                    print(f"Error initializing Gemini Provider: {e}")
-        
-        if self.keys["openai"]:
-            resolved = self._resolve_key(self.keys["openai"])
-            if resolved:
-                try:
+                elif provider_name == "openai":
                     self.providers["openai"] = OpenAIProvider(resolved)
-                except Exception as e:
-                    print(f"Error initializing OpenAI Provider: {e}")
-        if self.keys["anthropic"]:
-            resolved = self._resolve_key(self.keys["anthropic"])
-            if resolved:
-                try:
+                elif provider_name == "anthropic":
                     self.providers["anthropic"] = AnthropicProvider(resolved)
-                except Exception as e:
-                    print(f"Error initializing Anthropic Provider: {e}")
-        if self.keys["xai"]:
-            resolved = self._resolve_key(self.keys["xai"])
-            if resolved:
-                try:
+                elif provider_name == "xai":
                     self.providers["xai"] = OpenAIProvider(resolved, base_url="https://api.x.ai/v1")
-                except Exception as e:
-                    print(f"Error initializing xAI Provider: {e}")
+            except Exception as e:
+                print(f"DEBUG: Error initializing {provider_name} Provider: {e}")
 
     def _resolve_key(self, key_string):
         if not key_string:
@@ -238,7 +261,7 @@ class ModelManager:
                 if val: return val
             return os.environ.get(name)
         
-        # 1. Check for ${VAR} pattern
+        # 1. Check for ${VAR} pattern - Explicit pointer
         import re
         match = re.search(r'\$\{(.+?)\}', key_string)
         if match:
@@ -252,55 +275,87 @@ class ModelManager:
             return val
 
         # 2. Check if it's a direct environment variable name (pointer without ${})
+        # Rules for being a pointer:
+        # - All caps, numbers, underscore
+        # - No special characters (like lowercase letters which often appear in raw keys)
+        # - Exists in environment
         if key_string and re.match(r'^[A-Z0-9_]+$', key_string):
              val = get_env(key_string)
              if val and val != key_string:
                   return val
-             # If it's all caps and doesn't resolve, and isn't a known raw key prefix
-             if not key_string.startswith("AI"): # Gemini keys start with AI
-                  print(f"DEBUG: String '{key_string}' looks like a pointer but not found in env.")
-                  return None
+             
+             # If it's all caps but NOT in env, check if it looks like a raw key
+             # Gemini keys usually start with AIza... (which has lowercase, so it wouldn't match ^[A-Z0-9_]+$)
+             # If it's something like 'OPENAI_KEY' but not in env, we should return None so UI shows 'Pointer not found'
+             # If it's 'sk-...' it wouldn't match this regex anyway.
+             
+             # If it's a known raw key prefix that happens to be all caps, it's NOT a pointer
+             if key_string.startswith("AI"): 
+                  return key_string
+             
+             print(f"DEBUG: String '{key_string}' looks like a pointer but not found in env.")
+             return None
             
         return key_string
-
-    def load_config(self):
-        if os.path.exists(self.config_path):
-            with open(self.config_path, 'r') as f:
-                return json.load(f)
-        return {"custom_models": [], "hidden_ids": []}
 
     def save_config(self, config):
         with open(self.config_path, 'w') as f:
             json.dump(config, f, indent=4)
+
+    def load_config(self):
+        if os.path.exists(self.config_path):
+            try:
+                with open(self.config_path, 'r') as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return data
+                    return {"custom_models": [], "hidden_ids": []}
+            except Exception as e:
+                print(f"DEBUG: Error loading model config at {self.config_path}: {e}")
+                return {"custom_models": [], "hidden_ids": []}
+        return {"custom_models": [], "hidden_ids": []}
+
+    def _safe_float(self, val, default=0.0):
+        if val is None or val == "":
+            return default
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return default
 
     def get_available_models(self):
         """Returns list of models with their locked status."""
         # Defaults
         defaults = [
             # Google
-            {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "provider": "google", "recommended": True, "top_pick": True, "description": "The perfect balance of smarts & speed for Arby.", "default_cost_in": 0.30, "default_cost_out": 2.50},
-            {"id": "gemini-3-pro-preview", "name": "Gemini 3 Pro (Preview)", "provider": "google", "recommended": True, "description": "Deep Reasoning. The smartest model available.", "default_cost_in": 2.00, "default_cost_out": 12.00},
-            {"id": "gemini-3-flash-preview", "name": "Gemini 3 Flash (Preview)", "provider": "google", "description": "High Speed Agent. Smartest 'fast' model.", "default_cost_in": 0.50, "default_cost_out": 3.00},
+            {"id": "gemini-3-pro-preview", "name": "Gemini 3 Pro (Preview)", "provider": "google", "top_pick": True, "recommended": True, "description": "Deep Reasoning. The smartest model available.", "default_cost_in": 2.00, "default_cost_out": 12.00},
+            {"id": "gemini-3-flash-preview", "name": "Gemini 3 Flash (Preview)", "provider": "google", "recommended": True, "description": "High Speed Agent. Smartest 'fast' model.", "default_cost_in": 0.50, "default_cost_out": 3.00},
+            {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "provider": "google", "description": "The perfect balance of smarts & speed for Arby.", "default_cost_in": 0.30, "default_cost_out": 2.50},
             {"id": "gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash-Lite", "provider": "google", "description": "Bulk Processing. Great for large PDF libraries.", "default_cost_in": 0.10, "default_cost_out": 0.40},
             {"id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro", "provider": "google", "description": "Complex Logic. Use if Flash fails.", "default_cost_in": 1.25, "default_cost_out": 10.00},
             {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "provider": "google", "description": "Reliability. The 'old reliable' from late 2025.", "default_cost_in": 0.10, "default_cost_out": 0.40},
 
-            # OpenAI
-            {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai", "recommended": True, "description": "Noteable intelligence and multimodal capabilities.", "default_cost_in": 2.50, "default_cost_out": 10.00},
-            {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openai", "recommended": True, "description": "Fast, affordable, and capable.", "default_cost_in": 0.15, "default_cost_out": 0.60},
-            {"id": "o1-mini", "name": "OpenAI o1-mini (Reasoning)", "provider": "openai", "description": "Specialized for intense reasoning tasks.", "default_cost_in": 3.00, "default_cost_out": 12.00},
-            {"id": "o1-preview", "name": "OpenAI o1-preview", "provider": "openai", "description": "Advanced reasoning capabilities.", "default_cost_in": 15.00, "default_cost_out": 60.00},
-            {"id": "gpt-4-turbo", "name": "GPT-4 Turbo", "provider": "openai", "description": "Previous flagship, very reliable.", "default_cost_in": 10.00, "default_cost_out": 30.00},
-            
             # Anthropic
-            {"id": "claude-3-5-sonnet-20241022", "name": "Claude 3.5 Sonnet", "provider": "anthropic", "recommended": True, "description": "exceptional coding and writing skills.", "default_cost_in": 3.00, "default_cost_out": 15.00},
-            {"id": "claude-3-5-haiku-20241022", "name": "Claude 3.5 Haiku", "provider": "anthropic", "description": "The fastest Claude model.", "default_cost_in": 0.25, "default_cost_out": 1.25},
-            {"id": "claude-3-opus-20240229", "name": "Claude 3 Opus", "provider": "anthropic", "description": "Deep reasoning and creative writing.", "default_cost_in": 15.00, "default_cost_out": 75.00},
-            {"id": "claude-3-sonnet-20240229", "name": "Claude 3 Sonnet", "provider": "anthropic", "description": "Balanced performance.", "default_cost_in": 3.00, "default_cost_out": 15.00},
+            {"id": "claude-opus-4-5-20251101", "name": "Claude 4.5 Opus", "provider": "anthropic", "recommended": True, "top_pick": True, "description": "The absolute peak of Claude architecture.", "default_cost_in": 15.00, "default_cost_out": 75.00},
+            {"id": "claude-sonnet-4-5-20250929", "name": "Claude 4.5 Sonnet", "provider": "anthropic", "recommended": True, "description": "Ultra-fast, ultra-smart creative partner.", "default_cost_in": 3.00, "default_cost_out": 15.00},
+            {"id": "claude-haiku-4-5-20251001", "name": "Claude 4.5 Haiku", "provider": "anthropic", "description": "Fast and intelligent ultra-efficient model.", "default_cost_in": 0.25, "default_cost_out": 1.25},
+            
+            # OpenAI
+            {"id": "gpt-5", "name": "GPT-5", "provider": "openai", "recommended": True, "top_pick": True, "description": "The current flagship from OpenAI.", "default_cost_in": 5.00, "default_cost_out": 15.00},
+            {"id": "gpt-5-mini", "name": "GPT-5 Mini", "provider": "openai", "description": "Fast and smart miniature flagship.", "default_cost_in": 0.30, "default_cost_out": 1.20},
+            {"id": "gpt-4.1", "name": "GPT-4.1", "provider": "openai", "description": "Reliable legacy flagship.", "default_cost_in": 2.50, "default_cost_out": 10.00},
+            {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai", "recommended": True, "description": "Standard multimodal model.", "default_cost_in": 2.50, "default_cost_out": 10.00},
+            {"id": "o1", "name": "OpenAI o1", "provider": "openai", "description": "Reasoning & coding specialist.", "default_cost_in": 15.00, "default_cost_out": 60.00},
+            {"id": "o3", "name": "OpenAI o3", "provider": "openai", "description": "Next-gen reasoning model.", "default_cost_in": 3.00, "default_cost_out": 12.00},
+            {"id": "o3-mini", "name": "OpenAI o3-mini", "provider": "openai", "description": "Reasoning speedster.", "default_cost_in": 1.10, "default_cost_out": 4.40},
+            {"id": "o4-mini", "name": "OpenAI o4-mini", "provider": "openai", "description": "Efficient next-gen reasoning.", "default_cost_in": 0.50, "default_cost_out": 2.00},
             
             # xAI
-            {"id": "grok-beta", "name": "Grok Beta", "provider": "xai", "recommended": True, "description": "Witty, real-time knowledge integration.", "default_cost_in": 5.00, "default_cost_out": 15.00}, # Est
-            {"id": "grok-2", "name": "Grok 2", "provider": "xai", "description": "Latest from xAI.", "default_cost_in": 2.00, "default_cost_out": 10.00}, # Est
+            {"id": "grok-4-1-fast-reasoning", "name": "Grok 4.1 Fast", "provider": "xai", "recommended": True, "top_pick": True, "description": "Advanced reasoning from xAI.", "default_cost_in": 5.00, "default_cost_out": 20.00},
+            {"id": "grok-4-0709", "name": "Grok 4", "provider": "xai", "recommended": True, "description": "Latest xAI frontier model.", "default_cost_in": 5.00, "default_cost_out": 20.00},
+            {"id": "grok-3", "name": "Grok 3", "provider": "xai", "description": "Stable Grok flagship.", "default_cost_in": 2.00, "default_cost_out": 10.00},
+            {"id": "grok-3-mini", "name": "Grok 3 Mini", "provider": "xai", "description": "Efficient Grok model.", "default_cost_in": 0.50, "default_cost_out": 2.00},
+            {"id": "grok-2-vision-1212", "name": "Grok 2 Vision", "provider": "xai", "description": "Visual intelligence from Grok.", "default_cost_in": 2.00, "default_cost_out": 10.00},
         ]
         
         config = self.load_config()
@@ -317,7 +372,7 @@ class ModelManager:
         # Enrich with Status and User Costs
         saved_costs = config.get('costs', {})
         health_status = config.get('health', {})
-        core_model = config.get('core_model', 'gemini-2.0-flash-exp') # Default core
+        core_model = config.get('core_model', 'gemini-2.5-flash') # Updated default to match new list
 
         for m in active_models:
             mid = m['id']
@@ -331,10 +386,12 @@ class ModelManager:
                 m["locked"] = not bool(self.keys.get(provider))
 
             # Cost Rates
-            user_in = saved_costs.get(mid, {}).get('in')
-            user_out = saved_costs.get(mid, {}).get('out')
-            m['cost_in'] = float(user_in) if user_in is not None else m.get('default_cost_in', 0.0)
-            m['cost_out'] = float(user_out) if user_out is not None else m.get('default_cost_out', 0.0)
+            cost_entry = saved_costs.get(mid, {})
+            user_in = cost_entry.get('in') if isinstance(cost_entry, dict) else None
+            user_out = cost_entry.get('out') if isinstance(cost_entry, dict) else None
+
+            m['cost_in'] = self._safe_float(user_in, m.get('default_cost_in', 0.0))
+            m['cost_out'] = self._safe_float(user_out, m.get('default_cost_out', 0.0))
 
             # Health Status
             m['health'] = health_status.get(mid, {"status": "unchecked"})
@@ -434,7 +491,7 @@ class ModelManager:
             msg_lower = msg.lower()
             if "429" in msg or "quota" in msg_lower or "resource_exhausted" in msg_lower:
                 status = "rate_limit"
-            elif "key" in msg_lower or "auth" in msg_lower or "401" in msg:
+            elif "key" in msg_lower or "auth" in msg_lower or "401" in msg or "404" in msg or "not_found" in msg_lower:
                 status = "auth_error"
             else:
                 status = "error"
@@ -442,13 +499,19 @@ class ModelManager:
         # Save Result
         config = self.load_config()
         if 'health' not in config: config['health'] = {}
+        
+        # Format msg for UI display - keep it concise but informative
+        display_msg = msg
+        if len(display_msg) > 100:
+            display_msg = display_msg[:97] + "..."
+
         config['health'][model_id] = {
             "status": status,
-            "msg": msg,
+            "msg": display_msg,
             "last_checked": time.time()
         }
         self.save_config(config)
-        return status, msg
+        return status, display_msg
         
     def add_custom_model(self, model_id, name, provider, base_url=None, api_key=None):
         config = self.load_config()
@@ -490,7 +553,7 @@ class ModelManager:
         config['hidden_ids'] = []
         self.save_config(config)
 
-    def generate_plan(self, model_id, system_instruction, user_prompt, files=None, schema=WeeklyPlan):
+    def generate(self, model_id, system_instruction, user_prompt, files=None, schema=WeeklyPlan):
         # 1. Identify Provider (Re-fetch to include dynamic ones)
         models_list = self.get_available_models()
         target_model = next((m for m in models_list if m["id"] == model_id), None)

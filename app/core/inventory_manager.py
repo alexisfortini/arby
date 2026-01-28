@@ -2,9 +2,6 @@ import json
 import os
 import time
 from datetime import datetime
-import google.genai as genai
-from google.genai import types
-
 from pydantic import BaseModel
 
 class Ingredient(BaseModel):
@@ -87,28 +84,16 @@ class InventoryManager:
             model_id = self.model_manager.get_sous_chef_model_id() if self.model_manager else "gemini-2.0-flash"
             
             # Use ModelManager for generation
-            if self.model_manager:
-                result = self.model_manager.generate(
-                    model_id=model_id,
-                    system_instruction=prompt,
-                    user_prompt=f"Parse these items: {natural_language_input}",
-                    schema=IngredientList
-                )
-                new_items = result.get('ingredients', [])
-            else:
-                # Fallback if no model manager (dev/test)
-                response = self.client.models.generate_content(
-                    model=model_id,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=IngredientList,
-                    ),
-                )
-                if response.parsed:
-                    new_items = response.parsed.ingredients
-                else:
-                    new_items = IngredientList.model_validate_json(response.text).ingredients
+            if not self.model_manager:
+                raise ValueError("ModelManager not initialized in InventoryManager.")
+
+            result = self.model_manager.generate(
+                model_id=model_id,
+                system_instruction=prompt,
+                user_prompt=f"Parse these items: {natural_language_input}",
+                schema=IngredientList
+            )
+            new_items = result.get('ingredients', [])
             
             inventory = self.load_inventory()
             
@@ -165,24 +150,16 @@ class InventoryManager:
         try:
             model_id = self.model_manager.get_sous_chef_model_id() if self.model_manager else "gemini-2.0-flash"
             
-            if self.model_manager:
-                result = self.model_manager.generate(
-                    model_id=model_id,
-                    system_instruction=prompt,
-                    user_prompt=f"Parse: {ingredient_str}",
-                    schema=IngredientList
-                )
-                parsed = IngredientList(**result)
-            else:
-                response = self.client.models.generate_content(
-                    model=model_id,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=IngredientList,
-                    ),
-                )
-                parsed = response.parsed if response.parsed else IngredientList.model_validate_json(response.text)
+            if not self.model_manager:
+                raise ValueError("ModelManager not initialized in InventoryManager.")
+
+            result = self.model_manager.generate(
+                model_id=model_id,
+                system_instruction=prompt,
+                user_prompt=f"Parse: {ingredient_str}",
+                schema=IngredientList
+            )
+            parsed = IngredientList(**result)
             
             if not parsed.ingredients:
                 return False, "Could not parse ingredient."
@@ -206,24 +183,16 @@ class InventoryManager:
             2. If brand is different but item is common, it's still a match (e.g. 'Whole Milk' vs 'Milk').
             """
             
-            if self.model_manager:
-                result = self.model_manager.generate(
-                    model_id=model_id,
-                    system_instruction=match_prompt,
-                    user_prompt="Analyze",
-                    schema=MatchResult
-                )
-                match_result = MatchResult(**result)
-            else:
-                match_response = self.client.models.generate_content(
-                    model=model_id,
-                    contents=match_prompt,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=MatchResult,
-                    ),
-                )
-                match_result = match_response.parsed if match_response.parsed else MatchResult.model_validate_json(match_response.text)
+            if not self.model_manager:
+                raise ValueError("ModelManager not initialized in InventoryManager.")
+
+            result = self.model_manager.generate(
+                model_id=model_id,
+                system_instruction=match_prompt,
+                user_prompt="Analyze",
+                schema=MatchResult
+            )
+            match_result = MatchResult(**result)
             
             if match_result.has_match and match_result.inventory_index is not None:
                 idx = match_result.inventory_index
@@ -292,24 +261,16 @@ class InventoryManager:
         try:
             model_id = self.model_manager.get_sous_chef_model_id() if self.model_manager else "gemini-2.0-flash"
             
-            if self.model_manager:
-                result = self.model_manager.generate(
-                    model_id=model_id,
-                    system_instruction=prompt,
-                    user_prompt="Analyze",
-                    schema=ItemToRemoval
-                )
-                result = ItemToRemoval(**result)
-            else:
-                response = self.client.models.generate_content(
-                    model=model_id,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=ItemToRemoval,
-                    ),
-                )
-                result = response.parsed if response.parsed else ItemToRemoval.model_validate_json(response.text)
+            if not self.model_manager:
+                raise ValueError("ModelManager not initialized in InventoryManager.")
+
+            result = self.model_manager.generate(
+                model_id=model_id,
+                system_instruction=prompt,
+                user_prompt="Analyze",
+                schema=ItemToRemoval
+            )
+            result = ItemToRemoval(**result)
             
             if result.has_match and result.inventory_index is not None:
                 idx = result.inventory_index

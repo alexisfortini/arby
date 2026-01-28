@@ -10,8 +10,13 @@ class CalendarManager:
 
     def load_calendar(self):
         if os.path.exists(self.calendar_file):
-            with open(self.calendar_file, 'r') as f:
-                return json.load(f)
+            try:
+                with open(self.calendar_file, 'r') as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return data
+            except Exception as e:
+                print(f"DEBUG: Error loading calendar at {self.calendar_file}: {e}")
         return {}
         
     def save_calendar(self, data):
@@ -42,8 +47,13 @@ class CalendarManager:
 
     def load_config(self):
         if os.path.exists(self.config_file):
-            with open(self.config_file, 'r') as f:
-                return json.load(f)
+            try:
+                with open(self.config_file, 'r') as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return data
+            except Exception as e:
+                print(f"DEBUG: Error loading schedule config at {self.config_file}: {e}")
         # Default fallback
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         return {
@@ -195,6 +205,10 @@ class CalendarManager:
             calendar_days.append(day_data)
             
         return calendar_days
+
+    def active_plan_exists(self):
+        """Checks if there is an active plan file."""
+        return os.path.exists(os.path.join(self.state_dir, 'active_plan.json'))
 
     def get_default_start_date(self, scheduled_run_dt=None):
         """

@@ -42,6 +42,11 @@ user_manager = UserManager(base_dir)
 def load_user(user_id):
     return user_manager.get_user(user_id)
 
+# Set session duration (30 days)
+app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+login_manager.session_protection = "strong"
+
 @app.context_processor
 def inject_version():
     try:
@@ -55,14 +60,14 @@ def inject_version():
     except:
         git_hash = "local"
         
-    return dict(app_version="v1.0.6", git_hash=git_hash)
+    return dict(app_version="v1.0.7", git_hash=git_hash)
 
 # --- DYNAMIC AGENT HELPER ---
 def get_agent():
     if not current_user.is_authenticated:
         return None
     # Provide a user-scoped agent
-    return ArbyAgent(base_dir, user_id=current_user.id)
+    return ArbyAgent(base_dir, user_id=current_user.id, original_env=original_env)
 
 # --- AUTH ROUTES ---
 @app.route('/login', methods=['GET', 'POST'])
@@ -70,9 +75,10 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
+        remember = 'remember' in request.form
         user = user_manager.verify_login(email, password)
         if user:
-            login_user(user)
+            login_user(user, remember=remember)
             return redirect('/')
         else:
             flash('Invalid email or password', 'error')
@@ -98,7 +104,11 @@ def register():
 @login_required
 def logout():
     logout_user()
-    return redirect('/login')
+    return redirect(url_for('login'))
+
+@app.route('/manifest.json')
+def manifest():
+    return app.send_static_file('manifest.json')
 
 # --- SCHEDULER (Disabled for now in multi-user refactor) ---
 # Todo: Implement per-user scheduling
@@ -182,116 +192,114 @@ def inject_common_data():
 @app.route('/')
 @login_required
 def index():
-    agent = get_agent()
-    
-    # Load Config
-    config = agent.calendar_manager.load_config()
-    schedule_enabled = config.get('schedule_enabled', True)
-
-    # Pass necessary data to dashboard
-    next_run_dt = agent.calendar_manager.get_next_run_dt()
-    if schedule_enabled and next_run_dt:
-        next_run_str = format_date_suffix(next_run_dt)
-    else:
-        next_run_str = "None"
-    
-    # Simple history view
-    history = agent.load_history()
-    
-    last_run_display = "Never"
-    if history:
-         try:
-             # Assuming ISO format with time "2024-01-01T10:00:00"
-             dt = datetime.fromisoformat(history[-1]['date'])
-             last_run_display = format_date_suffix(dt)
-         except:
-             last_run_display = history[-1]['date'] # Fallback to raw string if parse fails
- 
-    last_run = last_run_display
-    
-    # Get Models for Selector
-    available_models = agent.model_manager.get_available_models()
-    
-    # Identify Current Head Chef
-    current_model = next((m for m in available_models if m.get('is_core')), None)
-            
-    # Fallback if no core model set (shouldn't happen if default exists)
-    if not current_model:
-         current_model = next((m for m in available_models if not m.get('locked')), None)
-
-    # Identifiers for next 14 days (for settings select labels)
-    days_data = []
-    base = datetime.now()
-    for i in range(14):
-        d = base + timedelta(days=i)
-        days_data.append({
-            "day": d.strftime("%Y-%m-%d"),
-            "label": f"{d.strftime('%A')} ({d.strftime('%b %d')})"
-        })
-
-    # Default Start Date Logic
-    # We still calculate this for the generate modal even if auto-schedule is off
-    next_run_ref = next_run_dt
-    if not next_run_ref:
-        next_run_ref = datetime.now()
+    try:
+        agent = get_agent()
         
-    next_run_str = format_date_suffix(next_run_ref) if config.get('schedule_enabled', True) else "Not Scheduled"
-    
-    default_start = agent.calendar_manager.get_default_start_date(next_run_ref)
-    if default_start < date.today():
-        default_start = date.today()
-    default_start_iso = default_start.strftime("%Y-%m-%d")
-    default_start_pretty = default_start.strftime("%a, %b %d")
+        # Load Config
+        config = agent.calendar_manager.load_config()
+        schedule_enabled = config.get('schedule_enabled', True)
 
-    # Check for active plan
-    active_plan_exists = os.path.exists(os.path.join(agent.user_state_dir, 'active_plan.json'))
+        # Pass necessary data to dashboard
+        next_run_dt = agent.calendar_manager.get_next_run_dt()
+        next_run_str = format_date_suffix(next_run_dt) if schedule_enabled and next_run_dt else "Not Scheduled"
+        
+        # Simple history view
+        history = agent.load_history()
+        
+        last_run_display = "Never"
+        if history:
+             try:
+                 # Assuming ISO format with time "2024-01-01T10:00:00"
+                 dt = datetime.fromisoformat(history[-1]['date'])
+                 last_run_display = format_date_suffix(dt)
+             except:
+                 last_run_display = history[-1]['date'] # Fallback to raw string if parse fails
+     
+        last_run = last_run_display
+        
+        # Get Models for Selector
+        available_models = agent.model_manager.get_available_models()
+        
+        # Identify Current Head Chef
+        current_model = next((m for m in available_models if m.get('is_core')), None)
+        if not current_model:
+            current_model = next((m for m in available_models if not m.get('locked')), None)
 
-    # Load Prefs for modal
-    pref_path = agent.pref_file
-    prefs = {}
-    if os.path.exists(pref_path):
-        with open(pref_path, 'r') as f:
-            prefs = json.load(f)
+        # Identifiers for next 14 days
+        days_data = []
+        base = datetime.now()
+        for i in range(14):
+            d = base + timedelta(days=i)
+            days_data.append({
+                "day": d.strftime("%Y-%m-%d"),
+                "label": f"{d.strftime('%A')} ({d.strftime('%b %d')})"
+            })
 
-    # Defaults to prevent Jinja errors
-    if 'data_context' not in prefs:
-        prefs['data_context'] = {
-            "use_inventory": True,
-            "use_history": True,
-            "use_ideas": True,
-            "use_cookbook": True
-        }
-    else:
-        # Fill in missing sub-keys if it was partially defined
-        for k, v in {"use_inventory": True, "use_history": True, "use_ideas": True, "use_cookbook": True}.items():
-            if k not in prefs['data_context']:
-                prefs['data_context'][k] = v
+        # Default Start Date Logic
+        next_run_ref = next_run_dt or datetime.now()
+        default_start = agent.calendar_manager.get_default_start_date(next_run_ref)
+        if default_start < date.today():
+            default_start = date.today()
+            
+        default_start_iso = default_start.strftime("%Y-%m-%d")
+        default_start_pretty = default_start.strftime("%A, %b %d")
 
-    if 'email_settings' not in prefs:
-        prefs['email_settings'] = {}
-    
-    if 'history_depth' not in prefs:
-        prefs['history_depth'] = 50
-    
-    if 'long_term_preferences' not in prefs:
-        prefs['long_term_preferences'] = ""
+        # Load Prefs for modal
+        pref_path = agent.pref_file
+        prefs = {}
+        if os.path.exists(pref_path):
+            with open(pref_path, 'r') as f:
+                prefs = json.load(f)
 
-    return render_template('index.html', 
-                           next_run=next_run_str, 
-                           last_run=last_run, 
-                           models=available_models, 
-                           current_model=current_model,
-                           default_start_date=default_start_iso,
-                           schedule_enabled=schedule_enabled,
-                           active_plan_exists=active_plan_exists,
-                           run_day=config.get('run_day', 'Sunday'),
-                           run_time=config.get('run_time', '10:00'),
-                           duration_days=config.get('duration_days', 8),
-                           days_data=days_data,
-                           default_start_date_pretty=default_start_pretty,
-                           today_iso=datetime.now().strftime("%Y-%m-%d"),
-                           prefs=prefs,
-                           user=current_user)
+        # Defaults to prevent Jinja errors
+        if 'data_context' not in prefs:
+            prefs['data_context'] = {
+                "use_inventory": True,
+                "use_history": True,
+                "use_ideas": True,
+                "use_cookbook": True
+            }
+        else:
+            for k, v in {"use_inventory": True, "use_history": True, "use_ideas": True, "use_cookbook": True}.items():
+                if k not in prefs['data_context']:
+                    prefs['data_context'][k] = v
+
+        if 'email_settings' not in prefs: prefs['email_settings'] = {}
+        if 'history_depth' not in prefs: prefs['history_depth'] = 50
+        if 'long_term_preferences' not in prefs: prefs['long_term_preferences'] = ""
+
+        # Recipe Ideas for modal
+        current_ideas = ""
+        if os.path.exists(agent.ideas_file):
+            with open(agent.ideas_file, 'r') as f:
+                current_ideas = f.read().strip()
+
+        active_plan_exists = agent.calendar_manager.active_plan_exists()
+
+        return render_template('index.html', 
+                               next_run=next_run_str, 
+                               last_run=last_run, 
+                               models=available_models, 
+                               current_model=current_model if current_model else {"name": "No Active Chef", "id": "none"},
+                               default_start_date=default_start_iso,
+                               schedule_enabled=schedule_enabled,
+                               active_plan_exists=active_plan_exists,
+                               run_day=config.get('run_day', 'Sunday'),
+                               run_time=config.get('run_time', '10:00'),
+                               duration_days=config.get('duration_days', 8),
+                               days_data=days_data,
+                               default_start_date_pretty=default_start_pretty,
+                               today_iso=datetime.now().strftime("%Y-%m-%d"),
+                               prefs=prefs,
+                               current_ideas=current_ideas,
+                               user=current_user)
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"CRITICAL DASHBOARD ERROR: {e}\n{error_details}")
+        return f"Arby Dashboard Error: {str(e)}<br><br><pre>{error_details}</pre>", 500
+
 
 @app.route('/health')
 def health_check():
@@ -391,7 +399,7 @@ def settings_page():
                     system_env[k.strip()] = v.strip().strip('"').strip("'")
     
     key_types = {
-        "gemini": "GEMINI_API_KEY",
+        "google": "GEMINI_API_KEY",
         "openai": "OPENAI_API_KEY",
         "anthropic": "ANTHROPIC_API_KEY",
         "xai": "XAI_API_KEY",
@@ -422,7 +430,7 @@ def settings_page():
              is_pointer_style = False # Likely a raw Gemini key
         
         is_pointer = is_env_present or is_pointer_style
-        resolved = agent.model_manager._resolve_key(raw_val)
+        resolved = agent.model_manager._resolve_key(raw_val) if raw_val else None
         
         status_msg = ""
         if is_pointer and not resolved:
@@ -435,6 +443,12 @@ def settings_page():
             "source": source if raw_val else None
         }
 
+    # Recipe Ideas for Data Tab
+    current_ideas = ""
+    if os.path.exists(agent.ideas_file):
+        with open(agent.ideas_file, 'r') as f:
+            current_ideas = f.read().strip()
+
     return render_template('settings.html', 
         display_keys=display_keys,
         models=all_models,
@@ -442,6 +456,7 @@ def settings_page():
         state_folder_path=agent.user_state_dir,
         env_file_path=os.path.join(base_dir, '.env'),
         prefs=prefs,
+        current_ideas=current_ideas,
         active_tab=request.args.get('tab', 'models'),
         user=current_user
     )
@@ -1731,9 +1746,32 @@ def estimate_cost_endpoint():
 @login_required
 def test_model_endpoint():
     agent = get_agent()
-    model_id = request.json.get('model_id')
-    status, msg = agent.model_manager.test_connection(model_id)
-    return jsonify({"status": status, "msg": msg})
+    try:
+        model_id = request.json.get('model_id')
+        status, msg = agent.model_manager.test_connection(model_id)
+        return jsonify({"status": status, "msg": msg})
+    except Exception as e:
+        print(f"DEBUG: Error in test_model_endpoint: {e}")
+        return jsonify({"status": "error", "msg": str(e)}), 500
+
+@app.route('/api/test_all', methods=['POST'])
+@login_required
+def test_all_models_endpoint():
+    agent = get_agent()
+    try:
+        # Get list of all unlocked models
+        models = agent.model_manager.get_available_models()
+        unlocked_models = [m['id'] for m in models if not m.get('locked')]
+        
+        results = []
+        for mid in unlocked_models:
+             status, msg = agent.model_manager.test_connection(mid)
+             results.append({"id": mid, "status": status, "msg": msg})
+             
+        return jsonify({"status": "ok", "results": results})
+    except Exception as e:
+        print(f"DEBUG: Error in test_all_models_endpoint: {e}")
+        return jsonify({"status": "error", "msg": str(e)}), 500
 
 @app.route('/settings/core_model', methods=['POST'])
 @login_required
@@ -1926,6 +1964,28 @@ def calendar_page():
     if not current_model:
          current_model = next((m for m in available_models if not m.get('locked')), None)
 
+    # Load Prefs for modal
+    pref_path = agent.pref_file
+    prefs = {}
+    if os.path.exists(pref_path):
+        with open(pref_path, 'r') as f:
+            prefs = json.load(f)
+
+    # Defaults to prevent Jinja errors
+    if 'data_context' not in prefs:
+        prefs['data_context'] = {
+            "use_inventory": True,
+            "use_history": True,
+            "use_ideas": True,
+            "use_cookbook": True
+        }
+
+    # Recipe Ideas for modal
+    current_ideas = ""
+    if os.path.exists(agent.ideas_file):
+        with open(agent.ideas_file, 'r') as f:
+            current_ideas = f.read().strip()
+
     return render_template('calendar.html', 
                            month_name=month_name,
                            month=month, 
@@ -1947,6 +2007,8 @@ def calendar_page():
                            models=available_models,
                            current_model=current_model,
                            today_iso=today.strftime("%Y-%m-%d"),
+                           prefs=prefs,
+                           current_ideas=current_ideas,
                            user=current_user)
 
 @app.route('/calendar/settings', methods=['POST'])

@@ -19,6 +19,10 @@ if [ -f "$DIR/.venv/bin/activate" ]; then
     source "$DIR/.venv/bin/activate"
 elif [ -f "$DIR/venv/bin/activate" ]; then
     source "$DIR/venv/bin/activate"
+elif [ -f "$DIR/../.venv/bin/activate" ]; then
+    source "$DIR/../.venv/bin/activate"
+elif [ -f "$DIR/../venv/bin/activate" ]; then
+    source "$DIR/../venv/bin/activate"
 fi
 
 # 2. Check if .env exists
@@ -26,6 +30,9 @@ if [ ! -f "$DIR/.env" ]; then
     echo "ERROR: .env file not found. Please create one with your API keys!"
     exit 1
 fi
+
+# --- Optional Data Sync ---
+# (Handled by the 'arby' wrapper script for background support)
 
 echo "Starting Arby Web Server..."
 

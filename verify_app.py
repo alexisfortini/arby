@@ -15,6 +15,11 @@ try:
     import app.core.calendar_manager
     import app.core.user_manager
     
+    print("Checking provider libraries...")
+    import google.genai
+    import openai
+    import anthropic
+    
     print("Checking server module syntax...")
     # This imports the Flask app object and defines routes
     from app.web.server import app as flask_app
