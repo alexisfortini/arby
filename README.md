@@ -1,4 +1,4 @@
-# Arby 👨‍🍳 - Your Personal AI Kitchen Assistant
+# Arby 👨‍🍳
 
 Arby is more than just a meal planner; it's an intelligent kitchen orchestrator designed to manage your recipes, inventory, and cooking schedule. By combining the power of Large Language Models (LLMs) with local inventory tracking, Arby helps you reduce food waste and eat better with minimal effort.
 
@@ -120,4 +120,4 @@ Contributions are welcome! Whether it's a bug fix, a new feature, or better aest
 
 ---
 
-*Arby Agent v1.0.0 • Crafted for better kitchens.*
+*Arby Agent v1.0.7 • Crafted for better kitchens.*

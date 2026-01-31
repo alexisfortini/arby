@@ -10,17 +10,16 @@
     <meta name="apple-mobile-web-app-title" content="Arby">
     <meta name="application-name" content="Arby">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <link rel="manifest" href="/manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs" defer></script>
     <script>
         // Prevent breakout from standalone web app on iOS
         // AND ensure session continuity by handling all internal links
-        (function(document, navigator, standalone) {
+        (function (document, navigator, standalone) {
             if ((standalone in navigator) && navigator[standalone]) {
                 var curnode, location = document.location, stop = /^(a|html)$/i;
-                document.addEventListener('click', function(e) {
+                document.addEventListener('click', function (e) {
                     curnode = e.target;
                     while (!(stop.test(curnode.nodeName))) {
                         curnode = curnode.parentNode;

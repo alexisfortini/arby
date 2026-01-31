@@ -2,7 +2,8 @@ import os
 import json
 import sys
 from datetime import datetime, timedelta, date, time as dt_time
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from functools import wraps
 from dotenv import load_dotenv
 import re
 import threading
@@ -60,7 +61,7 @@ def inject_version():
     except:
         git_hash = "local"
         
-    return dict(app_version="v1.0.7", git_hash=git_hash)
+    return dict(app_version="v1.0.8", git_hash=git_hash)
 
 # --- DYNAMIC AGENT HELPER ---
 def get_agent():
@@ -90,6 +91,13 @@ def register():
         name = request.form.get('name')
         email = request.form.get('email')
         password = request.form.get('password')
+        secret_key = request.form.get('secret_key')
+        
+        # Check registration secret
+        reg_secret = os.environ.get("REGISTRATION_SECRET")
+        if reg_secret and secret_key != reg_secret:
+            flash('Invalid registration key', 'error')
+            return render_template('signup.html')
         
         user, error = user_manager.create_user(name, email, password)
         if user:
@@ -99,6 +107,75 @@ def register():
         else:
             flash(error, 'error')
     return render_template('signup.html')
+
+# --- ADMIN ACCESS ---
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('is_admin'):
+            flash('Admin access required', 'error')
+            return redirect(url_for('admin_login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        password = request.form.get('password')
+        if password == os.environ.get("ADMIN_PASSWORD"):
+            session['is_admin'] = True
+            return redirect(url_for('admin_dashboard'))
+        else:
+            flash('Invalid administrator password', 'error')
+    return render_template('admin_login.html')
+
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('is_admin', None)
+    return redirect(url_for('login'))
+
+@app.route('/admin')
+@admin_required
+def admin_dashboard():
+    users = user_manager.load_users()
+    user_stats = []
+    for u in users:
+        usage = user_manager.get_user_storage_usage(u.id)
+        user_stats.append({
+            'user': u,
+            'usage_mb': round(usage, 2),
+            'limit_mb': u.storage_limit_mb
+        })
+    return render_template('admin.html', user_stats=user_stats)
+
+@app.route('/admin/user/<user_id>/wipe', methods=['POST'])
+@admin_required
+def admin_wipe_user(user_id):
+    success, error = user_manager.wipe_user_data(user_id)
+    if success:
+        flash(f'Cleaned all data for user {user_id}', 'success')
+    else:
+        flash(f'Wipe failed: {error}', 'error')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/user/<user_id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_user(user_id):
+    if user_manager.delete_user(user_id):
+        flash(f'Permanently deleted user {user_id}', 'success')
+    else:
+        flash(f'Deletion failed', 'error')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/user/<user_id>/limit', methods=['POST'])
+@admin_required
+def admin_set_limit(user_id):
+    limit = request.form.get('limit_mb')
+    if limit and user_manager.set_user_storage_limit(user_id, limit):
+        flash(f'Updated storage limit for user {user_id}', 'success')
+    else:
+        flash(f'Limit update failed', 'error')
+    return redirect(url_for('admin_dashboard'))
 
 @app.route('/logout')
 @login_required
