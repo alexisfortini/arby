@@ -136,6 +136,31 @@ class InventoryManager:
             print(f"Error parsing ingredients: {e}")
             return 0
 
+    def add_item(self, item_data):
+        """Adds a single item manually to the inventory."""
+        try:
+            inventory = self.load_inventory()
+            
+            # Basic validation/defaults
+            entry = {
+                "item": self._title_case(item_data.get('item', 'Unknown Item')),
+                "brand": self._title_case(item_data.get('brand')) if item_data.get('brand') else None,
+                "quantity": float(item_data.get('quantity', 1)),
+                "unit": item_data.get('unit', 'ct').lower(),
+                "size_value": float(item_data.get('size_value')) if item_data.get('size_value') else None,
+                "size_unit": item_data.get('size_unit').lower() if item_data.get('size_unit') else None,
+                "purchase_date": item_data.get('purchase_date') or datetime.now().strftime("%Y-%m-%d"),
+                "expiry_date": item_data.get('expiry_date'),
+                "added_on": datetime.now().strftime("%Y-%m-%d")
+            }
+            
+            inventory.append(entry)
+            self.save_inventory(inventory)
+            return True
+        except Exception as e:
+            print(f"Error adding manual item: {e}")
+            return False
+
     def add_one_smartly(self, ingredient_str):
         """Parses a single ingredient string and either updates existing or adds new."""
         # 1. Parse it

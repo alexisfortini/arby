@@ -72,8 +72,7 @@
                     CONTROL</span>
             </div>
             <p class="text-slate-500 text-sm mb-6">
-                Enter your **API Keys** or the **Name of an Environment Variable** containing the key. Arby will
-                automatically resolve them.
+                Enter your **API Keys** below to enable each provider.
             </p>
 
             <form method="POST">
@@ -82,15 +81,6 @@
                     <div class="flex justify-between items-center mb-2">
                         <label class="block text-sm font-semibold text-slate-700">Google Gemini API Key</label>
                         <div class="flex items-center gap-2">
-                            {% if display_keys.google.source %}
-                            <span
-                                class="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest"
-                                title="Source of this key">{{ display_keys.google.source }}</span>
-                            {% endif %}
-                            {% if display_keys.google.status %}
-                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
-                                display_keys.google.status }}</span>
-                            {% endif %}
                             {% if display_keys.google.active %}
                             <span
                                 class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
@@ -101,7 +91,7 @@
                         </div>
                     </div>
                     <input type="{% if display_keys.google.val == '***' %}password{% else %}text{% endif %}"
-                        name="gemini_key" placeholder="e.g. GEMINI_API_KEY or AIzam..."
+                        name="gemini_key" placeholder="e.g. AIzam..."
                         class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
                         value="{{ display_keys.google.val }}">
                     <p class="text-xs text-slate-400 mt-1">Recommended. Handles PDF cookbooks and advanced logic.
@@ -113,15 +103,6 @@
                     <div class="flex justify-between items-center mb-2">
                         <label class="block text-sm font-semibold text-slate-700">OpenAI API Key</label>
                         <div class="flex items-center gap-2">
-                            {% if display_keys.openai.source %}
-                            <span
-                                class="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest"
-                                title="Source of this key">{{ display_keys.openai.source }}</span>
-                            {% endif %}
-                            {% if display_keys.openai.status %}
-                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
-                                display_keys.openai.status }}</span>
-                            {% endif %}
                             {% if display_keys.openai.active %}
                             <span
                                 class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
@@ -132,7 +113,7 @@
                         </div>
                     </div>
                     <input type="{% if display_keys.openai.val == '***' %}password{% else %}text{% endif %}"
-                        name="openai_key" placeholder="e.g. OPENAI_API_KEY or sk-..."
+                        name="openai_key" placeholder="e.g. sk-..."
                         class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono text-sm"
                         value="{{ display_keys.openai.val }}">
                     <p class="text-xs text-slate-400 mt-1">Unlocks GPT-4o and o1-mini.</p>
@@ -143,15 +124,6 @@
                     <div class="flex justify-between items-center mb-2">
                         <label class="block text-sm font-semibold text-slate-700">Anthropic API Key</label>
                         <div class="flex items-center gap-2">
-                            {% if display_keys.anthropic.source %}
-                            <span
-                                class="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest"
-                                title="Source of this key">{{ display_keys.anthropic.source }}</span>
-                            {% endif %}
-                            {% if display_keys.anthropic.status %}
-                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
-                                display_keys.anthropic.status }}</span>
-                            {% endif %}
                             {% if display_keys.anthropic.active %}
                             <span
                                 class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
@@ -162,7 +134,7 @@
                         </div>
                     </div>
                     <input type="{% if display_keys.anthropic.val == '***' %}password{% else %}text{% endif %}"
-                        name="anthropic_key" placeholder="e.g. ANTHROPIC_API_KEY or sk-ant-..."
+                        name="anthropic_key" placeholder="e.g. sk-ant-..."
                         class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
                         value="{{ display_keys.anthropic.val }}">
                     <p class="text-xs text-slate-400 mt-1">Unlocks Claude 3.5 Sonnet & Haiku.</p>
@@ -173,15 +145,6 @@
                     <div class="flex justify-between items-center mb-2">
                         <label class="block text-sm font-semibold text-slate-700">xAI (Grok) API Key</label>
                         <div class="flex items-center gap-2">
-                            {% if display_keys.xai.source %}
-                            <span
-                                class="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest"
-                                title="Source of this key">{{ display_keys.xai.source }}</span>
-                            {% endif %}
-                            {% if display_keys.xai.status %}
-                            <span class="text-[10px] font-bold text-red-500 uppercase tracking-wide">{{
-                                display_keys.xai.status }}</span>
-                            {% endif %}
                             {% if display_keys.xai.active %}
                             <span
                                 class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">ACTIVE</span>
@@ -192,7 +155,7 @@
                         </div>
                     </div>
                     <input type="{% if display_keys.xai.val == '***' %}password{% else %}text{% endif %}" name="xai_key"
-                        placeholder="e.g. XAI_API_KEY or xai-..."
+                        placeholder="e.g. xai-..."
                         class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-500 font-mono text-sm"
                         value="{{ display_keys.xai.val }}">
                     <p class="text-xs text-slate-400 mt-1">Unlocks Grok Beta.</p>
@@ -802,14 +765,6 @@
                     <code class="block w-full text-xs text-slate-600 font-mono break-all">{{ state_folder_path }}</code>
                 </div>
 
-                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div class="flex justify-between items-center mb-1">
-                        <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-400">Environment
-                            Config
-                            (.env)</h3>
-                    </div>
-                    <code class="block w-full text-xs text-slate-600 font-mono break-all">{{ env_file_path }}</code>
-                </div>
             </div>
         </div>
     </div>

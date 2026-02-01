@@ -61,7 +61,7 @@ def inject_version():
     except:
         git_hash = "local"
         
-    return dict(app_version="v1.0.8", git_hash=git_hash)
+    return dict(app_version="v1.0.9", git_hash=git_hash)
 
 # --- DYNAMIC AGENT HELPER ---
 def get_agent():
@@ -747,6 +747,29 @@ def add_inventory():
             flash(f"Error: {e}", "error")
     return redirect(url_for('pantry_page'))
     
+@app.route('/pantry/add_manual', methods=['POST'])
+@login_required
+def add_inventory_manual():
+    agent = get_agent()
+    # Construct data dict from form
+    data = {
+        "item": request.form.get("item"),
+        "brand": request.form.get("brand"),
+        "quantity": request.form.get("quantity"),
+        "unit": request.form.get("unit"),
+        "size_value": request.form.get("size_value"),
+        "size_unit": request.form.get("size_unit"),
+        "purchase_date": request.form.get("purchase_date"),
+        "expiry_date": request.form.get("expiry_date")
+    }
+    
+    if agent.inventory_manager.add_item(data):
+        flash(f"Added {data['item']} to pantry.", "success")
+    else:
+        flash("Failed to add item.", "error")
+        
+    return redirect(url_for('pantry_page'))
+
 @app.route('/pantry/delete/<int:index>', methods=['POST'])
 @login_required
 def delete_inventory(index):

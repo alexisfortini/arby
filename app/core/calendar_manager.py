@@ -57,7 +57,7 @@ class CalendarManager:
         # Default fallback
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         return {
-            "duration_days": 8,
+            "duration_days": 4,
             "schedule_enabled": True,
             "schedule": {d: {"breakfast": True, "lunch": True, "dinner": True} for d in days},
             "view_mode": "work_week",

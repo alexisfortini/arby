@@ -174,11 +174,11 @@ class ArbyAgent:
                 
         past_meals = "Not provided."
         if data_ctx.get('use_history'):
-            depth = prefs.get('history_depth', 50)
+            depth = prefs.get('history_depth', 10)
             try:
                 depth = int(depth)
             except:
-                depth = 50
+                depth = 10
             past_meals = json.dumps(self.load_history()[-depth:])
         
         # Cookbook Context

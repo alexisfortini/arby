@@ -7,16 +7,30 @@
     <a href="/" class="text-sm font-semibold text-slate-500 hover:text-slate-800">Back</a>
 </div>
 
-<!-- Quick Add Form -->
-<div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 mb-6">
-    <label class="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-3">Quick Add</label>
+<!-- Action Buttons -->
+<div class="flex justify-center gap-3 mb-6">
+    <button onclick="toggleSmartAdd()" id="btnSmartAdd"
+        class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-full text-xs font-bold transition-all border border-indigo-100 shadow-sm">
+        <span>✨</span>
+        <span>Smart Add</span>
+    </button>
+    <button onclick="openAddModal()"
+        class="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-full text-xs font-bold transition-all border border-slate-100 shadow-sm">
+        <span>✏️</span>
+        <span>Manual Add</span>
+    </button>
+</div>
+
+<!-- Quick Add Form (Hidden by default) -->
+<div id="smartAddForm" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 mb-6 hidden">
+    <label class="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-3">Smart Import (Paste List)</label>
     <form action="/pantry/add" method="POST">
         <textarea name="ingredients" rows="2"
-            class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 mb-3"
+            class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-3"
             placeholder="e.g. Bought a bag of rice, 3 avocados, and some milk."></textarea>
         <button type="submit"
             class="w-full bg-slate-900 text-white font-semibold py-3 rounded-xl hover:opacity-90 transition">
-            Add to Inventory
+            Process with AI
         </button>
     </form>
 </div>
@@ -127,7 +141,7 @@
             </div>
 
             <div class="p-6 border-t border-slate-100 flex justify-between">
-                <button type="button" onclick="deleteItem()"
+                <button type="button" onclick="deleteItem()" id="deleteBtn"
                     class="text-red-600 font-semibold text-sm hover:underline">Delete Item</button>
                 <div class="space-x-2">
                     <button type="button" onclick="closeEditModal()"
@@ -162,6 +176,32 @@
         document.getElementById('modal_expiry_date').value = item.expiry_date || '';
 
         document.getElementById('editModal').classList.remove('hidden');
+    }
+
+    function openAddModal() {
+        document.getElementById('editForm').action = '/pantry/add_manual';
+        // Hide delete, it's a new item
+        document.getElementById('deleteBtn').classList.add('hidden');
+
+        // Reset fields
+        document.getElementById('modal_item').value = '';
+        document.getElementById('modal_brand').value = '';
+        document.getElementById('modal_quantity').value = '';
+        document.getElementById('modal_unit').value = '';
+        document.getElementById('modal_size_value').value = '';
+        document.getElementById('modal_size_unit').value = '';
+        document.getElementById('modal_purchase_date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('modal_expiry_date').value = '';
+
+        // Update Title
+        document.querySelector('#editModal h3').innerText = "Add Manual Item";
+
+        document.getElementById('editModal').classList.remove('hidden');
+    }
+
+    function toggleSmartAdd() {
+        const form = document.getElementById('smartAddForm');
+        form.classList.toggle('hidden');
     }
 
     function closeEditModal() {

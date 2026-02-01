@@ -206,21 +206,24 @@ class ModelManager:
         else:
             self.config_path = os.path.join(self.base_dir, 'state', 'model_config.json')
         
-        # Load keys - User Preferences > Current Env > Fallback Env
+        # Load keys - User Preferences > (Conditional) System Env
         def get_initial(name, user_key_type):
-            # 1. User Preference
+            # 1. User Preference (Highest Priority)
             val = self.user_keys.get(user_key_type)
             if val:
                 return val
 
-            # 2. System Environment
-            val = os.environ.get(name)
-            if not val or val == f"${{{name}}}": # Detect self-referencing shadow
-                if self.original_env and name in self.original_env:
-                    return self.original_env[name]
-            return val
+            # 2. System Environment (LOCAL MODE ONLY)
+            if os.environ.get("ARBY_ALLOW_ENV_KEYS") == "true":
+                val = os.environ.get(name)
+                if not val or val == f"${{{name}}}": # Detect self-referencing shadow
+                    if self.original_env and name in self.original_env:
+                        return self.original_env[name]
+                return val
+            
+            return None
 
-        # Load keys - User Preferences > System Env > Fallback Env
+        # Load keys
         self.keys = {
             "google": get_initial("GEMINI_API_KEY", "google"),
             "openai": get_initial("OPENAI_API_KEY", "openai"),
