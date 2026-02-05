@@ -3,7 +3,11 @@
 {% block content %}
 
 <div class="mb-4">
+    {% if request.args.get('from') == 'calendar' %}
+    <a href="/calendar" class="text-slate-500 hover:text-slate-800 text-sm">← Back to Calendar</a>
+    {% else %}
     <a href="/library" class="text-slate-500 hover:text-slate-800 text-sm">← Back to Library</a>
+    {% endif %}
 </div>
 
 <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -14,11 +18,17 @@
                     class="inline-block bg-green-50 text-green-700 text-xs px-2 py-1 rounded-full uppercase tracking-wide mb-2">
                     {{ recipe.category }}
                 </span>
+                {% if recipe.source == "ghost" %}
+                <span
+                    class="inline-block bg-amber-50 text-amber-700 text-xs px-2 py-1 rounded-full uppercase tracking-wide mb-2 ml-2">
+                    Not in Library
+                </span>
+                {% endif %}
                 <h1 class="text-3xl font-bold text-slate-800">{{ recipe.name }}</h1>
                 <!-- Rating Widget -->
                 <div class="flex items-center gap-1 mt-2" id="ratingContainer">
                     {% for i in range(1, 6) %}
-                    <button onclick="rateRecipe('{{ recipe.id }}', {{ i }})"
+                    <button onclick="rateRecipe(\" {{ recipe.id }}\", {{ i }})"
                         class="text-2xl transition hover:scale-110 focus:outline-none star-btn" data-value="{{ i }}">
                         {% if recipe.rating and recipe.rating >= i %}★{% else %}☆{% endif %}
                     </button>
@@ -27,7 +37,13 @@
                 </div>
             </div>
             <div class="flex space-x-2 mt-4 md:mt-0">
-                {% if recipe.source == 'pdf' and recipe.filename %}
+                {% if recipe.source == "ghost" %}
+                <a href="/library/add?name={{ recipe.name|urlencode }}"
+                    class="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition shadow-sm">
+                    + Add to Cookbook
+                </a>
+                {% else %}
+                {% if recipe.source == "pdf" and recipe.filename %}
                 <a href="/library/pdf/{{ recipe.filename }}" target="_blank"
                     class="bg-red-50 text-red-600 px-4 py-2 rounded-lg font-medium hover:bg-red-100 transition">
                     View Original PDF
@@ -37,13 +53,14 @@
                     class="bg-slate-100 text-slate-600 px-4 py-2 rounded-lg font-medium hover:bg-slate-200 transition">
                     Edit
                 </a>
-                <form action="/library/delete/{{ recipe.id }}" method="POST"
-                    onsubmit="return confirm('Delete this recipe? This cannot be undone.');">
+                <form action="/library/delete/{{ recipe.id }}" method="POST" onsubmit="return confirm(\" Delete this
+                    recipe? This cannot be undone.\");">
                     <button type="submit"
                         class="bg-white border border-red-200 text-red-500 px-4 py-2 rounded-lg font-medium hover:bg-red-50 transition">
                         Delete
                     </button>
                 </form>
+                {% endif %}
             </div>
         </div>
 
@@ -90,45 +107,46 @@
 {% block scripts %}
 <script>
     function rateRecipe(id, rating) {
-        const btns = document.querySelectorAll('.star-btn');
-        const status = document.getElementById('ratingStatus');
+        const btns = document.querySelectorAll(\".star-btn\");
+        const status = document.getElementById(\"ratingStatus\");
 
         // Optimistic UI Update
         btns.forEach(btn => {
             const val = parseInt(btn.dataset.value);
-            btn.innerHTML = val <= rating ? '★' : '☆';
-            btn.classList.toggle('text-yellow-400', val <= rating);
-            btn.classList.toggle('text-slate-300', val > rating);
+            btn.innerHTML = val <= rating ?\"★\" : \"☆\";
+            btn.classList.toggle(\"text-yellow-400\", val <= rating);
+            btn.classList.toggle(\"text-slate-300\", val > rating);
         });
 
-        fetch('/api/library/rate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+        fetch(\"/api/library/rate\", {
+            method: \"POST\",
+            headers: {
+        \"Content-Type\": \"application/json\" },
             body: JSON.stringify({ id: id, rating: rating })
         })
             .then(r => r.json())
             .then(data => {
-                if (data.status === 'ok') {
-                    status.innerText = 'Saved!';
-                    setTimeout(() => status.innerText = '', 2000);
+                if (data.status === \"ok\") {
+                status.innerText = \"Saved!\";
+                setTimeout(() => status.innerText = \"\", 2000);
                 } else {
-                    status.innerText = 'Error';
+                status.innerText = \"Error\";
                 }
             })
-            .catch(err => status.innerText = 'Error');
+            .catch (err => status.innerText = \"Error\");
     }
 
     // Init correct colors on load
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener(\"DOMContentLoaded\", () => {
         const currentRating = {{ recipe.rating or 0 }};
-        document.querySelectorAll('.star-btn').forEach(btn => {
+    document.querySelectorAll(\".star-btn\").forEach(btn => {
             const val = parseInt(btn.dataset.value);
-            if (val <= currentRating) {
-                btn.classList.add('text-yellow-400');
-                btn.innerHTML = '★';
+    if (val <= currentRating) {
+        btn.classList.add(\"text-yellow-400\");
+                btn.innerHTML = \"★\";
             } else {
-                btn.classList.add('text-slate-300');
-                btn.innerHTML = '☆';
+        btn.classList.add(\"text-slate-300\");
+                btn.innerHTML = \"☆\";
             }
         });
     });

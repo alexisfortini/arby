@@ -165,10 +165,13 @@
             <!-- Meal Slots -->
             <div class="space-y-2">
                 <!-- Breakfast -->
-                <div {% if day.in_plan_window
-                    %}onclick="toggleSlot('{{ day.day_name }}', 'breakfast', '{{ day.date_iso }}')"
-                    class="cursor-pointer group/slot relative h-16" {% else %} class="relative h-16 pointer-events-none"
-                    {% endif %}>
+                <div {% if day.in_plan_window %}
+                    onclick="toggleSlot('{{ day.day_name }}', 'breakfast', '{{ day.date_iso }}')"
+                    class="cursor-pointer group/slot relative h-16 transition-transform active:scale-[0.98]" {% elif
+                    day.content.breakfast %}
+                    onclick="openMealLink('{{ day.content.breakfast.recipe_id }}', '{{ day.content.breakfast.name }}')"
+                    class="cursor-pointer group/slot relative h-16 hover:bg-slate-50 transition-colors" {% else %}
+                    class="relative h-16 opacity-40" {% endif %}>
                     {% if day.content.breakfast %}
                     {% if day_config.breakfast and day.in_plan_window %}
                     <!-- ON + FILLED + HORIZON = OVERWRITE -->
@@ -178,7 +181,7 @@
                             class="text-[8px] font-black uppercase text-green-100 tracking-wider block mb-0.5">Overwrite</span>
                         <span
                             class="font-medium leading-tight opacity-90 italic text-[11px] line-clamp-2 text-balance">{{
-                            day.content.breakfast }}</span>
+                            day.content.breakfast.name }}</span>
                     </div>
                     {% else %}
                     <!-- SAVED (Normal) -->
@@ -188,7 +191,7 @@
                             class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5 whitespace-nowrap">🍳
                             Breakfast</span>
                         <span class="font-medium leading-tight text-[11px] line-clamp-2 text-balance">{{
-                            day.content.breakfast }}</span>
+                            day.content.breakfast.name }}</span>
                     </div>
                     {% endif %}
                     {% elif day_config.breakfast and day.in_plan_window %}
@@ -205,10 +208,13 @@
                 </div>
 
                 <!-- Lunch -->
-                <div {% if day.in_plan_window
-                    %}onclick="toggleSlot('{{ day.day_name }}', 'lunch', '{{ day.date_iso }}')"
-                    class="cursor-pointer group/slot relative h-16" {% else %} class="relative h-16 pointer-events-none"
-                    {% endif %}>
+                <div {% if day.in_plan_window %}
+                    onclick="toggleSlot('{{ day.day_name }}', 'lunch', '{{ day.date_iso }}')"
+                    class="cursor-pointer group/slot relative h-16 transition-transform active:scale-[0.98]" {% elif
+                    day.content.lunch %}
+                    onclick="openMealLink('{{ day.content.lunch.recipe_id }}', '{{ day.content.lunch.name }}')"
+                    class="cursor-pointer group/slot relative h-16 hover:bg-slate-50 transition-colors" {% else %}
+                    class="relative h-16 opacity-40" {% endif %}>
                     {% if day.content.lunch %}
                     {% if day_config.lunch and day.in_plan_window %}
                     <div
@@ -217,7 +223,7 @@
                             class="text-[8px] font-black uppercase text-green-100 tracking-wider block mb-0.5">Overwrite</span>
                         <span
                             class="font-medium leading-tight opacity-90 italic text-[11px] line-clamp-2 text-balance">{{
-                            day.content.lunch }}</span>
+                            day.content.lunch.name }}</span>
                     </div>
                     {% else %}
                     <div
@@ -226,7 +232,7 @@
                             class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5 whitespace-nowrap">🥗
                             Lunch</span>
                         <span class="font-medium leading-tight text-[11px] line-clamp-2 text-balance">{{
-                            day.content.lunch }}</span>
+                            day.content.lunch.name }}</span>
                     </div>
                     {% endif %}
                     {% elif day_config.lunch and day.in_plan_window %}
@@ -243,10 +249,13 @@
                 </div>
 
                 <!-- Dinner -->
-                <div {% if day.in_plan_window
-                    %}onclick="toggleSlot('{{ day.day_name }}', 'dinner', '{{ day.date_iso }}')"
-                    class="cursor-pointer group/slot relative h-16" {% else %} class="relative h-16 pointer-events-none"
-                    {% endif %}>
+                <div {% if day.in_plan_window %}
+                    onclick="toggleSlot('{{ day.day_name }}', 'dinner', '{{ day.date_iso }}')"
+                    class="cursor-pointer group/slot relative h-16 transition-transform active:scale-[0.98]" {% elif
+                    day.content.dinner %}
+                    onclick="openMealLink('{{ day.content.dinner.recipe_id }}', '{{ day.content.dinner.name }}')"
+                    class="cursor-pointer group/slot relative h-16 hover:bg-slate-50 transition-colors" {% else %}
+                    class="relative h-16 opacity-40" {% endif %}>
                     {% if day.content.dinner %}
                     {% if day_config.dinner and day.in_plan_window %}
                     <div
@@ -255,7 +264,7 @@
                             class="text-[8px] font-black uppercase text-green-100 tracking-wider block mb-0.5">Overwrite</span>
                         <span
                             class="font-medium leading-tight opacity-90 italic text-[11px] line-clamp-2 text-balance">{{
-                            day.content.dinner }}</span>
+                            day.content.dinner.name }}</span>
                     </div>
                     {% else %}
                     <div
@@ -264,7 +273,7 @@
                             class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5 whitespace-nowrap">🍽️
                             Dinner</span>
                         <span class="font-medium leading-tight text-[11px] line-clamp-2 text-balance">{{
-                            day.content.dinner }}</span>
+                            day.content.dinner.name }}</span>
                     </div>
                     {% endif %}
                     {% elif day_config.dinner and day.in_plan_window %}
@@ -294,6 +303,15 @@
         // Keep the original ref_date from the form to prevent view shifting
         document.getElementById('toggleSlotForm').submit();
     }
+
+    function openMealLink(id, name) {
+        let url = '/library/find?';
+        if (id && id !== 'None') url += 'id=' + id + '&';
+        if (name) url += 'name=' + encodeURIComponent(name) + '&';
+        url += 'from=calendar';
+        location.href = url;
+    }
+
 
     function saveCalSettings() {
         const runDay = document.getElementById('calRunDay').value;

@@ -100,7 +100,12 @@ class ArbyAgent:
                     meals_executed.append({
                         "name": m['name'],
                         "rating": m.get('rating', 0),
-                        "source": m.get('source', 'chef')
+                        "source": m.get('source', 'chef'),
+                        "scheduled_date": day['date'],
+                        "meal_type": mt,
+                        "recipe_id": m.get('recipe_id'),
+                        "ingredients": m.get('ingredients', []),
+                        "instructions": m.get('instructions', [])
                     })
 
         entry = {
@@ -323,15 +328,38 @@ class ArbyAgent:
         for day in plan_dict['days']:
             date_str = day['date']
             # Start with existing data for this date
-            day_state = existing_calendar.get(date_str, {}).copy()
+            day_content = existing_calendar.get(date_str, {})
+            # Defensive check: if it's a string (legacy), start fresh or convert
+            if isinstance(day_content, dict):
+                day_state = day_content.copy()
+            else:
+                day_state = {}
             
             # Overlay new recipes only if they were provided in the new plan
             if day.get('breakfast'):
-                day_state['breakfast'] = day['breakfast']['name']
+                day_state['breakfast'] = {
+                    "name": day['breakfast']['name'],
+                    "recipe_id": day['breakfast'].get('recipe_id'),
+                    "source": day['breakfast'].get('source', 'chef'),
+                    "ingredients": day['breakfast'].get('ingredients', []),
+                    "instructions": day['breakfast'].get('instructions', [])
+                }
             if day.get('lunch'):
-                day_state['lunch'] = day['lunch']['name']
+                day_state['lunch'] = {
+                    "name": day['lunch']['name'],
+                    "recipe_id": day['lunch'].get('recipe_id'),
+                    "source": day['lunch'].get('source', 'chef'),
+                    "ingredients": day['lunch'].get('ingredients', []),
+                    "instructions": day['lunch'].get('instructions', [])
+                }
             if day.get('dinner'):
-                day_state['dinner'] = day['dinner']['name']
+                day_state['dinner'] = {
+                    "name": day['dinner']['name'],
+                    "recipe_id": day['dinner'].get('recipe_id'),
+                    "source": day['dinner'].get('source', 'chef'),
+                    "ingredients": day['dinner'].get('ingredients', []),
+                    "instructions": day['dinner'].get('instructions', [])
+                }
             
             calendar_update[date_str] = day_state
         

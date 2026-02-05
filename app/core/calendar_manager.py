@@ -81,10 +81,22 @@ class CalendarManager:
             try:
                 next_run_date = datetime.strptime(run_day, "%Y-%m-%d").date()
                 h, m = map(int, run_time.split(':'))
-                return datetime.combine(next_run_date, dt_time(h, m))
+                next_run_dt = datetime.combine(next_run_date, dt_time(h, m))
+                
+                # If the ISO date is strictly in the past (more than 24h old), 
+                # fall back to recurring logic based on that day's name.
+                if next_run_dt < datetime.now() - timedelta(hours=24):
+                    raise ValueError("Date is in the past")
+                return next_run_dt
             except ValueError:
                 # 2. Fallback to Day Name Logic
-                run_day = run_day.title()
+                # If run_day was an ISO date, try to get its day name
+                try:
+                    passed_date = datetime.strptime(run_day, "%Y-%m-%d")
+                    run_day = passed_date.strftime("%A")
+                except:
+                    run_day = run_day.title()
+
                 days_map = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
                 if run_day not in days_map:
                     run_day = "Monday"
@@ -97,7 +109,12 @@ class CalendarManager:
                 days_ahead = target_day_idx - current_day_idx
                 if days_ahead < 0:
                     days_ahead += 7
-                    
+                elif days_ahead == 0:
+                    # If it's today, check if the time has already passed
+                    h, m = map(int, run_time.split(':'))
+                    if now.time() > dt_time(h, m):
+                         days_ahead = 7
+                         
                 next_run_date = now.date() + timedelta(days=days_ahead)
                 h, m = map(int, run_time.split(':'))
                 next_run_dt = datetime.combine(next_run_date, dt_time(h, m))
@@ -116,9 +133,8 @@ class CalendarManager:
     def get_days_for_view(self, ref_date, view_mode, next_run_dt=None):
         """
         Generates a list of day objects for the requested view mode.
-        ref_date: datetime.date or datetime.datetime
-        view_mode: str ('month', 'week', 'work_week', '3day', 'day')
-        next_run_dt: datetime.datetime or None
+        Past dates (< today) sourced from history.json.
+        Future dates (>= today) sourced from calendar.json.
         """
         import calendar
         
@@ -130,30 +146,45 @@ class CalendarManager:
         year = ref_date.year
         month = ref_date.month
         
-        # Load events
-        events = self.load_calendar()
+        # 1. Load Calendar (Future Source)
+        calendar_events = self.load_calendar()
         
-        # Determine Plan Window (Visual only, based on today or next_run)
+        # 2. Load History (Past Source)
+        history_events = {}
+        history_path = os.path.join(self.state_dir, 'history.json')
+        if os.path.exists(history_path):
+            try:
+                with open(history_path, 'r') as f:
+                    hist_data = json.load(f)
+                    for entry in hist_data:
+                        for m in entry.get('meals', []):
+                            d = m.get('scheduled_date')
+                            mt = m.get('meal_type')
+                            if d and mt:
+                                if d not in history_events: history_events[d] = {}
+                                # Store as rich object
+                                history_events[d][mt] = {
+                                    "name": m.get('name'),
+                                    "recipe_id": m.get('recipe_id'),
+                                    "source": m.get('source'),
+                                    "rating": m.get('rating')
+                                }
+            except Exception as e:
+                print(f"Error loading history for calendar: {e}")
+        
+        # Determine Plan Window (Visual only)
         config = self.load_config()
         duration = config.get('duration_days', 8)
         
         if config.get('schedule_enabled', True):
-            # If next_run_dt is not provided, calculate it from config
             if not next_run_dt:
                 next_run_dt = self.get_next_run_dt()
                 
             if next_run_dt:
                 start_plan = next_run_dt.date()
-                # If the run time is later today, the window INCLUDES today.
-                # If the run time was earlier today (already passed), we arguably should still
-                # show today as part of the cycle until the next run triggers?
-                # For simplicity/robustness: If the computed next run is today, today is in window.
-                # If computed next run is next week, today is NOT in window.
             else:
-                # Fallback to tomorrow if everything fails
                 start_plan = today + timedelta(days=1)
                 
-            # Create set of strings for O(1) lookup
             plan_window_dates = set(
                 (start_plan + timedelta(days=i)).strftime("%Y-%m-%d") 
                 for i in range(duration)
@@ -161,24 +192,20 @@ class CalendarManager:
         else:
             plan_window_dates = set()
 
-        cal = calendar.Calendar(firstweekday=0) # 0 = Monday
+        cal = calendar.Calendar(firstweekday=0)
         dates_to_show = []
 
         if view_mode == 'month':
-            # Rolling 30 days starting from ref_date
             dates_to_show = [ref_date + timedelta(days=i) for i in range(30)]
         elif view_mode == 'week':
-            # Rolling 7 days starting from ref_date
             dates_to_show = [ref_date + timedelta(days=i) for i in range(7)]
         elif view_mode == 'work_week':
-            # Rolling 5 days starting from ref_date
             dates_to_show = [ref_date + timedelta(days=i) for i in range(5)]
         elif view_mode == '3day':
             dates_to_show = [ref_date + timedelta(days=i) for i in range(3)]
         elif view_mode == 'day':
             dates_to_show = [ref_date]
         else:
-            # Default to rolling 30 days
             dates_to_show = [ref_date + timedelta(days=i) for i in range(30)]
 
         calendar_days = []
@@ -186,14 +213,29 @@ class CalendarManager:
             date_str = date_obj.strftime("%Y-%m-%d")
             day_name = date_obj.strftime("%A")
             
-            # Month View styling constraint
             in_month = (date_obj.month == month)
             
-            content = events.get(date_str, {})
+            # SOURCE SELECTION
+            if date_obj < today:
+                # Past -> History
+                raw_content = history_events.get(date_str, {})
+            else:
+                # Future/Today -> Calendar
+                raw_content = calendar_events.get(date_str, {})
+            
+            # NORMALIZATION 
+            content = {}
+            for mt in ['breakfast', 'lunch', 'dinner']:
+                if mt in raw_content:
+                    val = raw_content[mt]
+                    if isinstance(val, str):
+                        content[mt] = {"name": val, "recipe_id": None, "source": "unknown"}
+                    elif isinstance(val, dict):
+                        content[mt] = val
             
             day_data = {
                 "date_obj": date_obj,
-                "date_iso": date_str, # Helper for JS
+                "date_iso": date_str,
                 "date_num": date_obj.day,
                 "date_str": date_str,
                 "day_name": day_name,

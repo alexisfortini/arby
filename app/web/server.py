@@ -61,7 +61,7 @@ def inject_version():
     except:
         git_hash = "local"
         
-    return dict(app_version="v1.0.9", git_hash=git_hash)
+    return dict(app_version="v1.0.10", git_hash=git_hash)
 
 # --- DYNAMIC AGENT HELPER ---
 def get_agent():
@@ -1648,6 +1648,83 @@ def view_recipe(recipe_id):
         flash("Recipe not found", "error")
         return redirect('/library')
     return render_template('recipe_detail.html', recipe=recipe, user=current_user)
+
+@app.route('/library/find')
+@login_required
+def library_find():
+    agent = get_agent()
+    name = request.args.get('name')
+    recipe_id = request.args.get('id')
+    from_context = request.args.get('from')
+    
+    # 1. Try ID if provided
+    if recipe_id and recipe_id != 'None' and recipe_id != '':
+        recipe = agent.cookbook_manager.get_recipe(recipe_id)
+        if recipe:
+            return redirect(url_for('view_recipe', recipe_id=recipe['id'], **request.args))
+            
+    # 2. Try Smart Name Lookup
+    if name:
+        recipe = agent.cookbook_manager.find_recipe_by_name(name)
+        if recipe:
+            return redirect(url_for('view_recipe', recipe_id=recipe['id'], **request.args))
+            
+    # 3. Try searching calendar/history for one-time details
+    if name:
+        # Check calendar
+        calendar_data = agent.calendar_manager.load_calendar()
+        for date, day_content in calendar_data.items():
+            if not isinstance(day_content, dict):
+                continue
+            for slot in ['breakfast', 'lunch', 'dinner']:
+                m = day_content.get(slot)
+                if isinstance(m, dict) and m.get('name') == name and m.get('ingredients'):
+                    recipe = {
+                        "id": "ghost",
+                        "name": m['name'],
+                        "category": "From Plan",
+                        "protein": "Varies",
+                        "ingredients": m.get('ingredients', []),
+                        "instructions": m.get('instructions', []),
+                        "source": "plan",
+                        "rating": 0
+                    }
+                    return render_template('recipe_detail.html', recipe=recipe, user=current_user)
+        
+        # Check history
+        history_data = agent.load_history()
+        for entry in reversed(history_data):
+            if not isinstance(entry, dict):
+                continue
+            for m in entry.get('meals', []):
+                if isinstance(m, dict) and m.get('name') == name and m.get('ingredients'):
+                    recipe = {
+                        "id": "ghost",
+                        "name": m['name'],
+                        "category": "From History",
+                        "protein": "Varies",
+                        "ingredients": m.get('ingredients', []),
+                        "instructions": m.get('instructions', []),
+                        "source": "history",
+                        "rating": 0
+                    }
+                    return render_template('recipe_detail.html', recipe=recipe, user=current_user)
+
+    # 4. Fallback: Ghost Recipe Card (Generic)
+    if name:
+        ghost_recipe = {
+            "id": "ghost",
+            "name": name,
+            "category": "Uncategorized",
+            "protein": "Vegetarian",
+            "ingredients": ["Recipe not found in library."],
+            "instructions": ["This meal is in your calendar/history but not in your cookbook.", "Click 'Add to Cookbook' to save it properly."],
+            "source": "ghost",
+            "rating": 0
+        }
+        return render_template('recipe_detail.html', recipe=ghost_recipe, user=current_user)
+        
+    return redirect(url_for('library_page'))
 
 @app.route('/api/library/add_from_plan', methods=['POST'])
 @login_required

@@ -27,7 +27,8 @@
                     class="h-full w-full p-1.5 rounded-lg bg-green-500 text-white shadow-sm border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
                     <span
                         class="font-black uppercase block text-green-100 text-[7px] leading-tight mb-0.5">Overwrite</span>
-                    <span class="leading-tight truncate block text-[10px] italic">{{ day.content.breakfast }}</span>
+                    <span class="leading-tight truncate block text-[10px] italic">{{ day.content.breakfast.name
+                        }}</span>
                 </div>
                 {% else %}
                 <!-- OFF + FILLED = SAVED MEAL (Normal Appearance) -->
@@ -35,7 +36,7 @@
                     class="h-full w-full p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
                     <span class="font-bold block text-slate-400 text-[7px] leading-tight mb-0.5 uppercase">🍳
                         Breakfast</span>
-                    <span class="leading-tight truncate block text-[10px] font-medium">{{ day.content.breakfast
+                    <span class="leading-tight truncate block text-[10px] font-medium">{{ day.content.breakfast.name
                         }}</span>
                 </div>
                 {% endif %}
@@ -65,14 +66,15 @@
                     class="h-full w-full p-1.5 rounded-lg bg-green-500 text-white shadow-sm border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
                     <span
                         class="font-black uppercase block text-green-100 text-[7px] leading-tight mb-0.5">Overwrite</span>
-                    <span class="leading-tight truncate block text-[10px] italic">{{ day.content.lunch }}</span>
+                    <span class="leading-tight truncate block text-[10px] italic">{{ day.content.lunch.name }}</span>
                 </div>
                 {% else %}
                 <div
                     class="h-full w-full p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
                     <span class="font-bold block text-slate-400 text-[7px] leading-tight mb-0.5 uppercase">🥗
                         Lunch</span>
-                    <span class="leading-tight truncate block text-[10px] font-medium">{{ day.content.lunch }}</span>
+                    <span class="leading-tight truncate block text-[10px] font-medium">{{ day.content.lunch.name
+                        }}</span>
                 </div>
                 {% endif %}
                 {% else %}
@@ -99,14 +101,15 @@
                     class="h-full w-full p-1.5 rounded-lg bg-green-500 text-white shadow-sm border-b-2 border-green-700 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
                     <span
                         class="font-black uppercase block text-green-100 text-[7px] leading-tight mb-0.5">Overwrite</span>
-                    <span class="leading-tight truncate block text-[10px] italic">{{ day.content.dinner }}</span>
+                    <span class="leading-tight truncate block text-[10px] italic">{{ day.content.dinner.name }}</span>
                 </div>
                 {% else %}
                 <div
                     class="h-full w-full p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
                     <span class="font-bold block text-slate-400 text-[7px] leading-tight mb-0.5 uppercase">🍽️
                         Dinner</span>
-                    <span class="leading-tight truncate block text-[10px] font-medium">{{ day.content.dinner }}</span>
+                    <span class="leading-tight truncate block text-[10px] font-medium">{{ day.content.dinner.name
+                        }}</span>
                 </div>
                 {% endif %}
                 {% else %}

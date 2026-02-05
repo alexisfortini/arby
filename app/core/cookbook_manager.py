@@ -75,6 +75,11 @@ class CookbookManager:
             r'\bAuthentic\b',
             r'\bQuick\b',
             r'\d+\s*-?\s*(?:min|minute|hr|hour)s?\b', # "20 Min", "30 Minute"
+            r'\(Leftovers\)',
+            r'\(Modified\)',
+            r'\(Customized\)',
+            r'^Leftover\s+', # "Leftover Chicken" -> "Chicken"
+            r'^Leftovers\s+',
         ]
         
         cleaned = title
@@ -82,9 +87,10 @@ class CookbookManager:
         for pattern in fluff_patterns:
             cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
             
-        # 3. Clean up extra spaces/punctuation
+        # 3. Clean up extra spaces/punctuation/trailing dashes
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
         cleaned = re.sub(r'^\W+|\W+$', '', cleaned) # Trim leading/trailing non-word chars
+        cleaned = cleaned.rstrip('-').strip()
         
         # If we stripped everything (e.g. just "Best Ever"), revert to original but Title Case
         if not cleaned:
@@ -187,6 +193,70 @@ class CookbookManager:
     def get_recipe(self, recipe_id):
         recipes = self.load_recipes()
         return next((r for r in recipes if r['id'] == recipe_id), None)
+
+    def find_recipe_by_name(self, name):
+        """Finds a recipe by name with fuzzy cleaning/matching."""
+        if not name: return None
+        recipes = self.load_recipes()
+        
+        # Clean the input target
+        target = self._clean_title(name).lower().strip()
+        
+        # 0. Check if it's already an ID (unlikely but safe)
+        if len(name) > 30 and '-' in name:
+            for r in recipes:
+                if r['id'] == name: return r
+
+        # 1. Exact Name Match (case-insensitive)
+        for r in recipes:
+            if r['name'].lower().strip() == target:
+                return r
+                
+        # 2. Cleaned Name Match
+        for r in recipes:
+            if self._clean_title(r['name']).lower().strip() == target:
+                return r
+                
+        # 3. Substring Match: Recipe name is in Target (e.g. Target="Beef Stew (Leftovers)", Recipe="Beef Stew")
+        # Use cleaned versions for both
+        for r in recipes:
+            r_cleaned = self._clean_title(r['name']).lower().strip()
+            if r_cleaned and r_cleaned in target:
+                return r
+
+        # 4. Substring Match: Target is in Recipe name
+        for r in recipes:
+            r_cleaned = self._clean_title(r['name']).lower().strip()
+            if target and target in r_cleaned:
+                return r
+
+        # 5. Token overlap (Jaccard) fallback
+        # Useful for things like "Red Lentil Soup" matching "Creamy Red Lentil Soup with Aromatics"
+        best_match = None
+        best_score = 0.0
+        
+        target_tokens = set(target.split())
+        if not target_tokens: return None
+
+        for r in recipes:
+            r_name = self._clean_title(r['name']).lower().strip()
+            r_tokens = set(r_name.split())
+            if not r_tokens: continue
+            
+            intersection = len(target_tokens.intersection(r_tokens))
+            union = len(target_tokens.union(r_tokens))
+            score = intersection / union if union > 0 else 0
+            
+            # Threshold: at least 40% overlap or 2+ shared significant words (length > 3)
+            if score > best_score:
+                best_score = score
+                best_match = r
+        
+        # Checking if match is good enough
+        if best_score > 0.4:
+            return best_match
+            
+        return None
 
     def add_recipe(self, recipe_data: dict) -> Recipe:
         recipes = self.load_recipes()
