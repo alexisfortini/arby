@@ -61,7 +61,7 @@ def inject_version():
     except:
         git_hash = "local"
         
-    return dict(app_version="v1.0.10", git_hash=git_hash)
+    return dict(app_version="v1.0.11", git_hash=git_hash)
 
 # --- DYNAMIC AGENT HELPER ---
 def get_agent():
@@ -297,9 +297,10 @@ def index():
         # Get Models for Selector
         available_models = agent.model_manager.get_available_models()
         
-        # Identify Current Head Chef
-        current_model = next((m for m in available_models if m.get('is_core')), None)
+        # Identify Current Head Chef - Only from ACTIVE (unlocked) models
+        current_model = next((m for m in available_models if m.get('is_core') and not m.get('locked')), None)
         if not current_model:
+            # Fallback to any unlocked model
             current_model = next((m for m in available_models if not m.get('locked')), None)
 
         # Identifiers for next 14 days
@@ -342,7 +343,7 @@ def index():
                     prefs['data_context'][k] = v
 
         if 'email_settings' not in prefs: prefs['email_settings'] = {}
-        if 'history_depth' not in prefs: prefs['history_depth'] = 50
+        if 'history_depth' not in prefs: prefs['history_depth'] = 10
         if 'long_term_preferences' not in prefs: prefs['long_term_preferences'] = ""
 
         # Recipe Ideas for modal
@@ -357,13 +358,13 @@ def index():
                                next_run=next_run_str, 
                                last_run=last_run, 
                                models=available_models, 
-                               current_model=current_model if current_model else {"name": "No Active Chef", "id": "none"},
+                               current_model=current_model if current_model else {"name": "None Available", "id": "none"},
                                default_start_date=default_start_iso,
                                schedule_enabled=schedule_enabled,
                                active_plan_exists=active_plan_exists,
                                run_day=config.get('run_day', 'Sunday'),
                                run_time=config.get('run_time', '10:00'),
-                               duration_days=config.get('duration_days', 8),
+                               duration_days=config.get('duration_days', 4),
                                days_data=days_data,
                                default_start_date_pretty=default_start_pretty,
                                today_iso=datetime.now().strftime("%Y-%m-%d"),
@@ -460,7 +461,7 @@ def settings_page():
         prefs['email_settings'] = {}
         
     if 'history_depth' not in prefs:
-        prefs['history_depth'] = 50
+        prefs['history_depth'] = 10
         
     if 'long_term_preferences' not in prefs:
         prefs['long_term_preferences'] = ""
@@ -594,16 +595,43 @@ def delete_data():
                  json.dump([], f)
              flash("Library has been cleared.", "success")
         elif target == 'history':
-             agent.save_history([])
+             agent.clear_history()
              flash("Meal history has been cleared.", "success")
+        elif target == 'calendar':
+             agent.calendar_manager.save_calendar({})
+             # Also clear active plan and draft to sync dashboard
+             active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
+             draft_path = os.path.join(agent.user_state_dir, 'current_draft.json')
+             if os.path.exists(active_path): os.remove(active_path)
+             if os.path.exists(draft_path): os.remove(draft_path)
+             flash("Current meal plan has been wiped.", "success")
+        elif target == 'ideas_prefs':
+             # Clear Ideas
+             with open(agent.ideas_file, 'w') as f:
+                 f.write("")
+             # Reset Preferences
+             with open(agent.pref_file, 'w') as f:
+                 json.dump({}, f)
+             flash("Meal ideas and preferences have been reset.", "success")
         elif target == 'all':
              agent.inventory_manager.save_inventory([])
              with open(agent.cookbook_manager.recipes_file, 'w') as f:
                  json.dump([], f)
-             agent.save_history([])
-             # Clear Ideas too
+             agent.clear_history()
+             agent.calendar_manager.save_calendar({})
+             
+             # Clear Ideas/Prefs
              with open(agent.ideas_file, 'w') as f:
                  f.write("")
+             with open(agent.pref_file, 'w') as f:
+                 json.dump({}, f)
+
+             # Clear Plan Files
+             active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
+             draft_path = os.path.join(agent.user_state_dir, 'current_draft.json')
+             if os.path.exists(active_path): os.remove(active_path)
+             if os.path.exists(draft_path): os.remove(draft_path)
+
              flash("ALL data has been wiped.", "success")
         else:
             flash("Invalid deletion target.", "error")
@@ -729,7 +757,10 @@ def pantry_page():
     agent = get_agent()
     # Sort by expiry if possible or just as is
     items = agent.inventory_manager.load_inventory()
-    return render_template('inventory.html', items=enumerate(items), user=current_user)
+    return render_template('inventory.html', 
+                          items=enumerate(items), 
+                          items_raw=items,
+                          user=current_user)
 
 @app.route('/pantry/add', methods=['POST'])
 @login_required
@@ -828,10 +859,21 @@ def delete_history_entry(index):
     agent = get_agent()
     history = agent.load_history()
     if 0 <= index < len(history):
-        history.pop(index)
+        entry = history.pop(index)
+        
+        # Sync with calendar: remove all dates mentioned in this history entry from calendar.json
+        dates_to_clear = set()
+        for meal in entry.get('meals', []):
+            d = meal.get('scheduled_date')
+            if d:
+                dates_to_clear.add(d)
+        
+        for d in dates_to_clear:
+            agent.calendar_manager.remove_day(d)
+
         with open(agent.history_file, 'w') as f:
             json.dump(history, f, indent=4)
-        flash("History entry removed.", "info")
+        flash("History entry removed and calendar synced.", "info")
     return redirect('/history')
 
 @app.route('/history/review/<int:index>', methods=['POST'])
@@ -2178,7 +2220,7 @@ def calendar_page():
                            default_start_date=default_start_iso,
                            run_day=config.get('run_day', 'Sunday'),
                            run_time=config.get('run_time', '10:00'),
-                           duration_days=config.get('duration_days', 8),
+                           duration_days=config.get('duration_days', 4),
                            next_run=format_date_suffix(next_run) if config.get('schedule_enabled', True) and next_run else "OFF",
                            days_data=days_data,
                            models=available_models,
@@ -2206,7 +2248,7 @@ def update_settings():
                 key = f"{day}_{meal}"
                 new_schedule[day][meal] = (key in request.form)
                 
-        config["duration_days"] = int(request.form.get('duration_days', config.get('duration_days', 8)))
+        config["duration_days"] = int(request.form.get('duration_days', config.get('duration_days', 4)))
         config["schedule"] = new_schedule
         config["view_mode"] = request.form.get('view_mode', config.get('view_mode', 'month'))
         

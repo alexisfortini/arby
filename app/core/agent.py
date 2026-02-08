@@ -91,17 +91,23 @@ class ArbyAgent:
     def save_history(self, plan_dict):
         history = self.load_history()
         
+        # Defensive check: plan_dict must be a dictionary
+        if not isinstance(plan_dict, dict):
+            print(f"DEBUG: save_history called with invalid plan_dict type: {type(plan_dict)}")
+            return
+
         # Extract meals and ratings
         meals_executed = []
         for day in plan_dict.get('days', []):
+            if not isinstance(day, dict): continue
             for mt in ['breakfast', 'lunch', 'dinner']:
                 m = day.get(mt)
-                if m:
+                if isinstance(m, dict):
                     meals_executed.append({
-                        "name": m['name'],
+                        "name": m.get('name', 'Unknown Meal'),
                         "rating": m.get('rating', 0),
                         "source": m.get('source', 'chef'),
-                        "scheduled_date": day['date'],
+                        "scheduled_date": day.get('date'),
                         "meal_type": mt,
                         "recipe_id": m.get('recipe_id'),
                         "ingredients": m.get('ingredients', []),
@@ -121,6 +127,11 @@ class ArbyAgent:
             
         with open(self.history_file, 'w') as f:
             json.dump(history, f, indent=4)
+
+    def clear_history(self):
+        """Safely clears the history file."""
+        with open(self.history_file, 'w') as f:
+            json.dump([], f, indent=4)
 
     def construct_prompt(self, start_date=None, duration=None):
         """Constructs the system and user prompts based on current state."""

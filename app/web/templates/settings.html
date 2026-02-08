@@ -712,12 +712,32 @@
                 </form>
 
                 <form action="/settings/data/delete" method="POST"
+                    onsubmit="return confirm('Are you sure you want to clear your CURRENT PLAN (Calendar)? This will remove all future meals but keep your History.');">
+                    <input type="hidden" name="target" value="calendar">
+                    <button type="submit"
+                        class="w-full bg-white border border-red-200 text-red-600 font-bold py-3 rounded-xl hover:bg-red-100 transition flex items-center justify-center gap-2">
+                        <span>Clear Current Plan</span>
+                        <span class="text-lg">📅</span>
+                    </button>
+                </form>
+
+                <form action="/settings/data/delete" method="POST"
                     onsubmit="return confirm('Are you sure you want to clear your Meal History?');">
                     <input type="hidden" name="target" value="history">
                     <button type="submit"
                         class="w-full bg-white border border-red-200 text-red-600 font-bold py-3 rounded-xl hover:bg-red-100 transition flex items-center justify-center gap-2">
                         <span>Clear History</span>
                         <span class="text-lg">🕰️</span>
+                    </button>
+                </form>
+
+                <form action="/settings/data/delete" method="POST"
+                    onsubmit="return confirm('Are you sure you want to clear your Next Week\'s ideas AND reset all your preferences (AI models, API keys, etc.)?');">
+                    <input type="hidden" name="target" value="ideas_prefs">
+                    <button type="submit"
+                        class="w-full bg-white border border-red-200 text-red-600 font-bold py-3 rounded-xl hover:bg-red-100 transition flex items-center justify-center gap-2">
+                        <span>Clear Ideas & Preferences</span>
+                        <span class="text-lg">⚙️</span>
                     </button>
                 </form>
 

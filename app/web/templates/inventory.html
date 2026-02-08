@@ -2,76 +2,133 @@
 
 {% block content %}
 
-<div class="flex items-center justify-between mb-4">
-    <h1 class="text-2xl font-bold text-slate-800">Your Pantry</h1>
-    <a href="/" class="text-sm font-semibold text-slate-500 hover:text-slate-800">Back</a>
-</div>
+<div x-data='{ 
+    search: "", 
+    sortBy: "name",
+    items: {{ items_raw | tojson | safe }},
+    get filteredItems() {
+        let filtered = this.items.filter(i => 
+            i.item.toLowerCase().includes(this.search.toLowerCase()) || 
+            (i.brand && i.brand.toLowerCase().includes(this.search.toLowerCase()))
+        );
+        
+        if (this.sortBy === "name") {
+            filtered.sort((a, b) => a.item.localeCompare(b.item));
+        } else if (this.sortBy === "newest") {
+            filtered.sort((a, b) => new Date(b.added_on) - new Date(a.added_on));
+        } else if (this.sortBy === "expiry") {
+            filtered.sort((a, b) => {
+                if (!a.expiry_date) return 1;
+                if (!b.expiry_date) return -1;
+                return new Date(a.expiry_date) - new Date(b.expiry_date);
+            });
+        }
+        return filtered;
+    }
+}'>
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-bold text-slate-800">Your Pantry</h1>
+        <a href="/" class="text-sm font-semibold text-slate-500 hover:text-slate-800">Back</a>
+    </div>
 
-<!-- Action Buttons -->
-<div class="flex justify-center gap-3 mb-6">
-    <button onclick="toggleSmartAdd()" id="btnSmartAdd"
-        class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-full text-xs font-bold transition-all border border-indigo-100 shadow-sm">
-        <span>✨</span>
-        <span>Smart Add</span>
-    </button>
-    <button onclick="openAddModal()"
-        class="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-full text-xs font-bold transition-all border border-slate-100 shadow-sm">
-        <span>✏️</span>
-        <span>Manual Add</span>
-    </button>
-</div>
-
-<!-- Quick Add Form (Hidden by default) -->
-<div id="smartAddForm" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 mb-6 hidden">
-    <label class="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-3">Smart Import (Paste List)</label>
-    <form action="/pantry/add" method="POST">
-        <textarea name="ingredients" rows="2"
-            class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-3"
-            placeholder="e.g. Bought a bag of rice, 3 avocados, and some milk."></textarea>
-        <button type="submit"
-            class="w-full bg-slate-900 text-white font-semibold py-3 rounded-xl hover:opacity-90 transition">
-            Process with AI
+    <!-- Action Buttons -->
+    <div class="flex justify-center gap-3 mb-6">
+        <button onclick="toggleSmartAdd()" id="btnSmartAdd"
+            class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-full text-xs font-bold transition-all border border-indigo-100 shadow-sm">
+            <span>✨</span>
+            <span>Smart Add</span>
         </button>
-    </form>
-</div>
+        <button onclick="openAddModal()"
+            class="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-full text-xs font-bold transition-all border border-slate-100 shadow-sm">
+            <span>✏️</span>
+            <span>Manual Add</span>
+        </button>
+    </div>
 
-<!-- Inventory List -->
-<div class="space-y-3">
-    {% if items %}
-    {% for idx, item in items %}
-    <div class="bg-white p-4 rounded-xl border border-slate-100 transition hover:shadow-md cursor-pointer"
-        data-item="{{ item | tojson | forceescape }}" data-index="{{ idx }}" onclick="openEditModal(this)">
-        <div class="flex justify-between items-start">
-            <div>
-                <div class="font-semibold text-slate-800 text-lg">{{ item.item }}</div>
-                <div class="text-sm text-slate-500">{{ item.brand if item.brand else 'Generic' }}</div>
-                <div class="text-xs text-slate-400 mt-1">
-                    Added: {{ item.added_on }}
-                    {% if item.expiry_date %} • Exp: {{ item.expiry_date }} {% endif %}
-                </div>
-            </div>
-            <div class="flex items-center gap-2">
-                <span id="qty-{{ idx }}" class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">
-                    {{ item.quantity }} {{ item.unit }}
-                </span>
-                <button onclick="event.stopPropagation(); quickIncrement({{ idx }})"
-                    class="w-6 h-6 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors text-lg font-bold">
-                    +
-                </button>
-            </div>
-            {% if item.size_value %}
-            <span class="text-xs text-slate-400 mt-1">
-                ({{ item.size_value }} {{ item.size_unit }})
+    <!-- Quick Add Form (Hidden by default) -->
+    <div id="smartAddForm" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 mb-6 hidden">
+        <label class="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-3">Smart Import (Paste
+            List)</label>
+        <form action="/pantry/add" method="POST">
+            <textarea name="ingredients" rows="2"
+                class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-3"
+                placeholder="e.g. Bought a bag of rice, 3 avocados, and some milk."></textarea>
+            <button type="submit"
+                class="w-full bg-slate-900 text-white font-semibold py-3 rounded-xl hover:opacity-90 transition">
+                Process with AI
+            </button>
+        </form>
+    </div>
+
+    <!-- Search and Sort -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+        <div class="relative flex-1">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
             </span>
-            {% endif %}
+            <input type="text" x-model="search" placeholder="Search pantry..."
+                class="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
         </div>
+        <select x-model="sortBy"
+            class="block w-full sm:w-48 px-3 py-2 border border-slate-200 rounded-xl bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+            <option value="name">Sort by Name</option>
+            <option value="newest">Sort by Newest</option>
+            <option value="expiry">Sort by Expiry</option>
+        </select>
     </div>
-    {% endfor %}
-    {% else %}
-    <div class="text-center py-12 text-slate-400">
-        Your pantry is empty. <br>Add some items above!
+
+    <!-- Inventory List -->
+    <div class="space-y-2">
+        <template x-if="filteredItems.length > 0">
+            <template x-for="(item, index) in filteredItems" :key="item.id || index">
+                <div class="bg-white p-3 rounded-xl border border-slate-100 transition hover:shadow-md cursor-pointer flex justify-between items-center group"
+                    @click="openEditModalFromItem(item)">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-slate-800 truncate" x-text="item.item"></span>
+                            <span x-show="item.brand"
+                                class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium truncate"
+                                x-text="item.brand"></span>
+                        </div>
+                        <div class="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2">
+                            <span x-text="'Added: ' + item.added_on"></span>
+                            <template x-if="item.expiry_date">
+                                <span class="flex items-center gap-1"
+                                    :class="new Date(item.expiry_date) < new Date() ? 'text-red-500' : ''">
+                                    <span class="w-1 h-1 rounded-full bg-slate-300"></span>
+                                    <span x-text="'Exp: ' + item.expiry_date"></span>
+                                </span>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="text-right">
+                            <span class="bg-blue-50 text-blue-700 text-[11px] font-black px-2 py-1 rounded-lg"
+                                x-text="item.quantity + ' ' + item.unit"></span>
+                            <div x-show="item.size_value" class="text-[9px] text-slate-400 mt-0.5"
+                                x-text="'(' + item.size_value + ' ' + item.size_unit + ')'"></div>
+                        </div>
+                        <button @click.stop="quickIncrementByItem(item)"
+                            class="w-8 h-8 flex items-center justify-center bg-slate-50 hover:bg-blue-100 text-slate-400 hover:text-blue-600 rounded-xl transition-all border border-slate-100 hover:border-blue-200">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 4v16m8-8H4"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </template>
+        <template x-if="filteredItems.length === 0">
+            <div class="text-center py-12 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <span x-show="search" x-text="'No items matching \'' + search + '\''"></span>
+                <span x-show="!search">Your pantry is empty.<br>Add some items above!</span>
+            </div>
+        </template>
     </div>
-    {% endif %}
 </div>
 
 <!-- Edit Modal -->
@@ -159,23 +216,27 @@
 </div>
 
 <script>
-    function openEditModal(el) {
-        const index = el.getAttribute('data-index');
-        const item = JSON.parse(el.getAttribute('data-item'));
+    function openEditModalFromItem(item) {
+        // Find actual index in original items array
+        const rawItems = {{ items_raw | tojson | safe
+    }};
+    const index = rawItems.findIndex(i => JSON.stringify(i) === JSON.stringify(item));
 
-        document.getElementById('editForm').action = '/pantry/edit/' + index;
-        document.getElementById('deleteForm').action = '/pantry/delete/' + index;
+    document.getElementById('editForm').action = '/pantry/edit/' + index;
+    document.getElementById('deleteForm').action = '/pantry/delete/' + index;
 
-        document.getElementById('modal_item').value = item.item;
-        document.getElementById('modal_brand').value = item.brand || '';
-        document.getElementById('modal_quantity').value = item.quantity;
-        document.getElementById('modal_unit').value = item.unit;
-        document.getElementById('modal_size_value').value = item.size_value || '';
-        document.getElementById('modal_size_unit').value = item.size_unit || '';
-        document.getElementById('modal_purchase_date').value = item.purchase_date || '';
-        document.getElementById('modal_expiry_date').value = item.expiry_date || '';
+    document.getElementById('modal_item').value = item.item;
+    document.getElementById('modal_brand').value = item.brand || '';
+    document.getElementById('modal_quantity').value = item.quantity;
+    document.getElementById('modal_unit').value = item.unit;
+    document.getElementById('modal_size_value').value = item.size_value || '';
+    document.getElementById('modal_size_unit').value = item.size_unit || '';
+    document.getElementById('modal_purchase_date').value = item.purchase_date || '';
+    document.getElementById('modal_expiry_date').value = item.expiry_date || '';
 
-        document.getElementById('editModal').classList.remove('hidden');
+    document.getElementById('deleteBtn').classList.remove('hidden');
+    document.querySelector('#editModal h3').innerText = "Edit Item";
+    document.getElementById('editModal').classList.remove('hidden');
     }
 
     function openAddModal() {
@@ -214,21 +275,20 @@
         }
     }
 
-    function quickIncrement(index) {
-        const badge = document.getElementById('qty-' + index);
-        const unit = badge.innerText.split(' ').slice(1).join(' ');
+    function quickIncrementByItem(item) {
+        const rawItems = {{ items_raw | tojson | safe
+    }};
+    const index = rawItems.findIndex(i => JSON.stringify(i) === JSON.stringify(item));
 
-        fetch('/pantry/increment/' + index, { method: 'POST' })
-            .then(r => r.json())
-            .then(data => {
-                if (data.status === 'ok') {
-                    badge.innerText = data.new_quantity + ' ' + unit;
-                    // Subtle animation
-                    badge.classList.add('scale-110');
-                    setTimeout(() => badge.classList.remove('scale-110'), 200);
-                }
-            })
-            .catch(err => console.error(err));
+    fetch('/pantry/increment/' + index, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                // Update the local item object which will trigger Alpine refresh
+                item.quantity = data.new_quantity;
+            }
+        })
+        .catch(err => console.error(err));
     }
 </script>
 

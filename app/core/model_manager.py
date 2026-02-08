@@ -437,7 +437,7 @@ class ModelManager:
     def get_sous_chef_model_id(self):
         config = self.load_config()
         # Default to 1.5 Flash for high reliability/quota if not set
-        return config.get('sous_chef_model', 'gemini-1.5-flash')
+        return config.get('sous_chef_model', 'gemini-2.0-flash')
 
     def set_librarian_model(self, model_id):
         config = self.load_config()
@@ -447,7 +447,7 @@ class ModelManager:
     def get_librarian_model_id(self):
         config = self.load_config()
         # Default to 1.5 Flash - best for PDF ingestion
-        return config.get('librarian_model', 'gemini-1.5-flash')
+        return config.get('librarian_model', 'gemini-2.0-flash')
 
     def update_model_cost(self, model_id, cost_in, cost_out):
         config = self.load_config()

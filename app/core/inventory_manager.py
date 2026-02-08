@@ -98,8 +98,8 @@ class InventoryManager:
             inventory = self.load_inventory()
             
             for item in new_items:
-                item_name = self._title_case(item.item)
-                brand_name = self._title_case(item.brand)
+                item_name = self._title_case(item.get('item', ''))
+                brand_name = self._title_case(item.get('brand', ''))
 
                 # Find Match in current inventory
                 match_found = False
@@ -109,8 +109,8 @@ class InventoryManager:
                 
                 # Given we want to be smart:
                 for existing in inventory:
-                    if existing['item'].lower() == item_name.lower() and existing['unit'].lower() == item.unit.lower():
-                        existing['quantity'] += item.quantity
+                    if existing['item'].lower() == item_name.lower() and existing['unit'].lower() == item.get('unit', '').lower():
+                        existing['quantity'] += item.get('quantity', 0)
                         existing['updated_on'] = datetime.now().strftime("%Y-%m-%d")
                         match_found = True
                         break
@@ -119,13 +119,13 @@ class InventoryManager:
                     entry = {
                         "item": item_name,
                         "brand": brand_name,
-                        "quantity": item.quantity,
-                        "unit": item.unit.lower() if item.unit else "ct",
-                        "size_value": item.size_value,
-                        "size_unit": item.size_unit.lower() if item.size_unit else None,
+                        "quantity": item.get('quantity', 1),
+                        "unit": item.get('unit', 'ct').lower() if item.get('unit') else "ct",
+                        "size_value": item.get('size_value'),
+                        "size_unit": item.get('size_unit').lower() if item.get('size_unit') else None,
                         "purchase_date": datetime.now().strftime("%Y-%m-%d"),
-                        "expiry_date": item.expiry_date,
-                        "expiry_estimate_days": item.expiry_estimate_days,
+                        "expiry_date": item.get('expiry_date'),
+                        "expiry_estimate_days": item.get('expiry_estimate_days'),
                         "added_on": datetime.now().strftime("%Y-%m-%d")
                     }
                     inventory.append(entry)

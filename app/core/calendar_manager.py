@@ -45,6 +45,22 @@ class CalendarManager:
                 del calendar[date_str]
             self.save_calendar(calendar)
 
+    def remove_day(self, date_str):
+        """Removes an entire day's entries from the calendar."""
+        calendar = self.load_calendar()
+        if date_str in calendar:
+            del calendar[date_str]
+            self.save_calendar(calendar)
+
+    def clear_until(self, date_str):
+        """Removes all calendar entries on or before the given date string."""
+        calendar = self.load_calendar()
+        dates_to_remove = [d for d in calendar.keys() if d <= date_str]
+        for d in dates_to_remove:
+            del calendar[d]
+        if dates_to_remove:
+            self.save_calendar(calendar)
+
     def load_config(self):
         if os.path.exists(self.config_file):
             try:
@@ -56,12 +72,13 @@ class CalendarManager:
                 print(f"DEBUG: Error loading schedule config at {self.config_file}: {e}")
         # Default fallback
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        today_name = datetime.now().strftime("%A")
         return {
             "duration_days": 4,
             "schedule_enabled": True,
             "schedule": {d: {"breakfast": True, "lunch": True, "dinner": True} for d in days},
             "view_mode": "work_week",
-            "run_day": "Sunday",
+            "run_day": today_name,
             "run_time": "10:00"
         }
     
@@ -110,10 +127,9 @@ class CalendarManager:
                 if days_ahead < 0:
                     days_ahead += 7
                 elif days_ahead == 0:
-                    # If it's today, check if the time has already passed
-                    h, m = map(int, run_time.split(':'))
-                    if now.time() > dt_time(h, m):
-                         days_ahead = 7
+                    # Keep today as the run day even if the time has passed
+                    # This ensures Today stays in the planning window (green) for the whole day
+                    days_ahead = 0
                          
                 next_run_date = now.date() + timedelta(days=days_ahead)
                 h, m = map(int, run_time.split(':'))
