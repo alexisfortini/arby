@@ -130,10 +130,97 @@ class InventoryManager:
                     }
                     inventory.append(entry)
                 
-            self.save_inventory(inventory)
-            return len(new_items)
         except Exception as e:
             print(f"Error parsing ingredients: {e}")
+            return 0
+
+    def parse_image(self, image_path, mime_type=None):
+        """Uploads image to Librarian (Gemini) and extracts pantry items."""
+        # 1. Determine Model (Librarian)
+        model_id = self.model_manager.get_librarian_model_id()
+        if not model_id:
+            model_id = "gemini-2.0-flash"
+            
+        print(f"DEBUG: Parsing image with model {model_id}...")
+        
+        try:
+            # 2. Upload File
+            # Get MIME type if not provided
+            if not mime_type:
+                import mimetypes
+                mime_type, _ = mimetypes.guess_type(image_path)
+                if not mime_type:
+                    mime_type = "image/jpeg" # Default fallback
+            
+            uploaded_file = self.model_manager.upload_file(model_id, image_path, mime_type=mime_type)
+            
+            # 3. Construct Prompt
+            prompt = """
+            Analyze this image of grocery items or a pantry shelf.
+            Extract all visible food items into a structured list.
+            
+            Rules:
+            1. be specific but concise (e.g. 'Tomatoes', 'Heinz Ketchup', 'Almond Milk').
+            2. Estimate quantity if visible (e.g. '2', '1 bag', '0.5 gallon').
+            3. Estimate expiry relative to today for fresh produce.
+            4. Ignore non-food items.
+            """
+            
+            # 4. Generate
+            result = self.model_manager.generate(
+                model_id=model_id,
+                system_instruction=prompt,
+                user_prompt="What items are in this image?",
+                files=[uploaded_file],
+                schema=IngredientList
+            )
+            
+            new_items = result.get('ingredients', [])
+            
+            # 5. Add to Inventory (Reuse logic)
+            # We can reuse the logic from parse_and_add but refactored, 
+            # or just copy-paste the loop for now to be safe.
+            inventory = self.load_inventory()
+            count = 0
+            
+            for item in new_items:
+                item_name = self._title_case(item.get('item', ''))
+                brand_name = self._title_case(item.get('brand', ''))
+                
+                # Deduplication / Merging Logic
+                match_found = False
+                for existing in inventory:
+                    if existing['item'].lower() == item_name.lower():
+                         # If unit matches, add
+                         if existing['unit'].lower() == item.get('unit', '').lower():
+                             existing['quantity'] += item.get('quantity', 0)
+                             existing['updated_on'] = datetime.now().strftime("%Y-%m-%d")
+                             match_found = True
+                             break
+                
+                if not match_found:
+                    entry = {
+                        "item": item_name,
+                        "brand": brand_name,
+                        "quantity": item.get('quantity', 1),
+                        "unit": item.get('unit', 'ct').lower() if item.get('unit') else "ct",
+                        "size_value": item.get('size_value'),
+                        "size_unit": item.get('size_unit').lower() if item.get('size_unit') else None,
+                        "purchase_date": datetime.now().strftime("%Y-%m-%d"),
+                        "expiry_date": item.get('expiry_date'),
+                        "expiry_estimate_days": item.get('expiry_estimate_days'),
+                        "added_on": datetime.now().strftime("%Y-%m-%d")
+                    }
+                    inventory.append(entry)
+                count += 1
+                
+            self.save_inventory(inventory)
+            return count
+            
+        except Exception as e:
+            print(f"Error parsing image: {e}")
+            import traceback
+            traceback.print_exc()
             return 0
 
     def add_item(self, item_data):

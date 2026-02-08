@@ -591,11 +591,12 @@
         const startDateStr = document.getElementById('modalStartDate').value;
         const duration = document.getElementById('modalDuration').value || 4;
 
-        // Construct URL
+        // Construct URL with cache buster
         let url = '/calendar/widget';
         const params = new URLSearchParams();
         if (startDateStr) params.append('date', startDateStr);
         params.append('duration', duration);
+        params.append('_t', Date.now()); // Cache buster
 
         fetch(`${url}?${params.toString()}`)
             .then(r => r.text())
@@ -647,7 +648,13 @@
             }
         };
 
-        if (startInput) startInput.addEventListener('change', updateAll);
-        if (durationInput) durationInput.addEventListener('change', updateAll);
+        if (startInput) {
+            startInput.addEventListener('change', updateAll);
+            startInput.addEventListener('input', updateAll);
+        }
+        if (durationInput) {
+            durationInput.addEventListener('change', updateAll);
+            durationInput.addEventListener('input', updateAll);
+        }
     });
 </script>

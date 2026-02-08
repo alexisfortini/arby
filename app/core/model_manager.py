@@ -61,7 +61,22 @@ class GeminiProvider:
                 system_instruction=system_instruction
             )
         )
-        return response.text
+    def upload_file(self, file_path, mime_type=None):
+        if not file_path:
+            raise ValueError("No file path provided")
+            
+        print(f"DEBUG: Uploading {file_path} to Gemini...")
+        try:
+            # Upload using the client (new SDK)
+            # Use 'rb' mode for safety on all platforms
+            with open(file_path, "rb") as f:
+                uploaded_file = self.client.files.upload(file=f, config={'mime_type': mime_type})
+            
+            print(f"DEBUG: Upload complete: {uploaded_file.uri}")
+            return uploaded_file
+        except Exception as e:
+            print(f"DEBUG: Upload Failed: {e}")
+            raise e
 
 class OpenAIProvider:
     def __init__(self, api_key, base_url=None):
@@ -585,3 +600,11 @@ class ModelManager:
         # 2. Call Provider
         print(f"Generating structured response using {model_id} via {provider_name}...")
         return provider.generate(model_id, system_instruction, user_prompt, files, schema=schema)
+
+    def upload_file(self, model_id, file_path, mime_type=None):
+        """Uploads a file using the provider of the specified model (Gemini only currently)."""
+        provider = self._get_provider_for_model(model_id)
+        if isinstance(provider, GeminiProvider):
+            return provider.upload_file(file_path, mime_type)
+        else:
+            raise ValueError("File upload is only supported for Gemini models currently.")

@@ -75,7 +75,7 @@ class CalendarManager:
         today_name = datetime.now().strftime("%A")
         return {
             "duration_days": 4,
-            "schedule_enabled": True,
+            "schedule_enabled": False,
             "schedule": {d: {"breakfast": True, "lunch": True, "dinner": True} for d in days},
             "view_mode": "work_week",
             "run_day": today_name,
@@ -146,7 +146,7 @@ class CalendarManager:
             print(f"CalendarManager Error: Failed to calculate next run: {e}")
             return None
 
-    def get_days_for_view(self, ref_date, view_mode, next_run_dt=None):
+    def get_days_for_view(self, ref_date, view_mode, next_run_dt=None, duration_override=None):
         """
         Generates a list of day objects for the requested view mode.
         Past dates (< today) sourced from history.json.
@@ -190,23 +190,20 @@ class CalendarManager:
         
         # Determine Plan Window (Visual only)
         config = self.load_config()
-        duration = config.get('duration_days', 8)
+        duration = duration_override if duration_override is not None else config.get('duration_days', 4)
         
-        if config.get('schedule_enabled', True):
-            if not next_run_dt:
-                next_run_dt = self.get_next_run_dt()
-                
-            if next_run_dt:
-                start_plan = next_run_dt.date()
-            else:
-                start_plan = today + timedelta(days=1)
-                
-            plan_window_dates = set(
-                (start_plan + timedelta(days=i)).strftime("%Y-%m-%d") 
-                for i in range(duration)
-            )
+        if not next_run_dt:
+            next_run_dt = self.get_next_run_dt()
+            
+        if next_run_dt:
+            start_plan = next_run_dt.date()
         else:
-            plan_window_dates = set()
+            start_plan = today + timedelta(days=1)
+            
+        plan_window_dates = set(
+            (start_plan + timedelta(days=i)).strftime("%Y-%m-%d") 
+            for i in range(duration)
+        )
 
         cal = calendar.Calendar(firstweekday=0)
         dates_to_show = []
@@ -221,6 +218,12 @@ class CalendarManager:
             dates_to_show = [ref_date + timedelta(days=i) for i in range(3)]
         elif view_mode == 'day':
             dates_to_show = [ref_date]
+        elif view_mode == 'planning':
+            # SPECIAL MODE: Show ONLY the days in the planning horizon based on START DATE
+            # If start_plan is today/future, show from start_plan.
+            # If we are viewing a past date, this mode behaves like 'week' unless specified.
+            # But typically 'planning' implies looking at the upcoming partial horizon.
+            dates_to_show = [start_plan + timedelta(days=i) for i in range(duration)]
         else:
             dates_to_show = [ref_date + timedelta(days=i) for i in range(30)]
 

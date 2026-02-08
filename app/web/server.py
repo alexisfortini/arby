@@ -61,7 +61,7 @@ def inject_version():
     except:
         git_hash = "local"
         
-    return dict(app_version="v1.0.12", git_hash=git_hash)
+    return dict(app_version="v1.0.13", git_hash=git_hash)
 
 # --- DYNAMIC AGENT HELPER ---
 def get_agent():
@@ -777,6 +777,46 @@ def add_inventory():
         except Exception as e:
             flash(f"Error: {e}", "error")
     return redirect(url_for('pantry_page'))
+
+@app.route('/pantry/scan', methods=['POST'])
+@login_required
+def scan_pantry():
+    agent = get_agent()
+    if 'image' not in request.files:
+        flash("No image uploaded", "error")
+        return redirect(url_for('pantry_page'))
+    
+    file = request.files['image']
+    if file.filename == '':
+        flash("No selected file", "error")
+        return redirect(url_for('pantry_page'))
+        
+    if file:
+        # Save temp
+        import tempfile
+        # Create a temp file path
+        fd, path = tempfile.mkstemp(suffix=os.path.splitext(file.filename)[1])
+        try:
+            # os.fdopen is tricky with file.save which expects a path or stream
+            # file.save(path) works if path is str
+            os.close(fd) # Close the low level handle so we can write to path
+            file.save(path)
+            
+            # Process
+            count = agent.inventory_manager.parse_image(path)
+            if count > 0:
+                flash(f"Librarian found and added {count} items!", "success")
+            else:
+                flash("Librarian couldn't find any items in that photo.", "warning")
+                
+        except Exception as e:
+            flash(f"Error processing image: {e}", "error")
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+                
+    return redirect(url_for('pantry_page'))
+    
     
 @app.route('/pantry/add_manual', methods=['POST'])
 @login_required
@@ -2057,35 +2097,23 @@ def calendar_widget():
     days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     
     # Calculate visual plan window
-    plan_window_dates = [ (ref_date + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(duration) ]
-    
-    calendar_days = []
-    today = date.today()
-    
-    for i in range(duration):
-        date_obj = ref_date + timedelta(days=i)
-        date_str = date_obj.strftime("%Y-%m-%d")
-        day_name = date_obj.strftime("%A")
-        
-        content = events.get(date_str, {})
-        
-        day_data = {
-            "date_obj": date_obj,
-            "date_iso": date_str,
-            "date_num": date_obj.day,
-            "date_str": date_str,
-            "day_name": day_name,
-            "is_today": (date_obj == today),
-            "in_month": True, 
-            "in_plan_window": True, 
-            "content": content
-        }
-        calendar_days.append(day_data)
+    # Calculate a mock next_run_dt using the ref_date passed by the widget
+    # This ensures the green highlight starts exactly on the selected date in the modal
+    h, m = map(int, config.get('run_time', '10:00').split(':'))
+    mock_run_dt = datetime.combine(ref_date, dt_time(h, m))
+
+    # Use standard manager logic with our new 'planning' mode
+    calendar_days = agent.calendar_manager.get_days_for_view(
+        ref_date=ref_date, 
+        view_mode='planning',
+        next_run_dt=mock_run_dt,
+        duration_override=duration
+    )
 
     return render_template(
         'calendar_partial.html',
         calendar_days=calendar_days,
-        view_mode='custom',
+        view_mode='planning',
         ref_date=ref_date,
         config=config,
         user=current_user
@@ -2149,6 +2177,11 @@ def calendar_page():
     elif view_mode == '3day':
         next_date = ref_date + timedelta(days=3)
         prev_date = ref_date - timedelta(days=3)
+        
+    elif view_mode == 'planning':
+        duration = config.get('duration_days', 4)
+        next_date = ref_date + timedelta(days=duration)
+        prev_date = ref_date - timedelta(days=duration)
         
     elif view_mode == 'day':
         next_date = ref_date + timedelta(days=1)
