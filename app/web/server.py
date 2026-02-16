@@ -46,7 +46,7 @@ def load_user(user_id):
 # Set session duration (30 days)
 app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
-login_manager.session_protection = "strong"
+login_manager.session_protection = "basic"
 
 @app.context_processor
 def inject_version():
@@ -61,7 +61,7 @@ def inject_version():
     except:
         git_hash = "local"
         
-    return dict(app_version="v1.0.13", git_hash=git_hash)
+    return dict(app_version="v1.0.14", git_hash=git_hash)
 
 # --- DYNAMIC AGENT HELPER ---
 def get_agent():

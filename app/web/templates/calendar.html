@@ -27,12 +27,13 @@
         </div>
 
         <!-- View Modes -->
-        <div class="flex p-1 bg-slate-50 rounded-xl border border-slate-100 shadow-inner">
-            {% for mode, label in [('day', 'Day'), ('3day', '3D'), ('planning', 'Plan'), ('work_week', '5D'), ('week',
+        <div
+            class="flex flex-wrap items-center justify-center gap-1 p-1 bg-slate-50 rounded-xl border border-slate-100 shadow-inner w-full sm:w-auto">
+            {% for mode, label in [('day', 'Day'), ('3day', '3D'), ('work_week', '5D'), ('week',
             'Week'), ('month',
             'Month')] %}
             <a href="/calendar?view={{ mode }}&date={{ ref_date }}"
-                class="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all whitespace-nowrap
+                class="flex-1 sm:flex-none text-center px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all whitespace-nowrap
                       {% if view_mode == mode %} bg-white text-blue-600 shadow-sm {% else %} text-slate-400 hover:text-slate-600 {% endif %}">
                 {{ label }}
             </a>
@@ -42,27 +43,48 @@
 
     <!-- Box 2: Plan Settings & Generation -->
     <div
-        class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 min-h-[210px] relative flex flex-col justify-center">
+        class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 relative flex flex-col md:block gap-4 md:min-h-[210px]">
+
+        <!-- Schedule (Top Left) -->
+        <div class="md:absolute md:top-4 md:left-4 flex flex-col gap-1.5 w-full md:w-auto">
+            <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Next Run</span>
+            <div
+                class="flex items-center gap-3 bg-slate-100/50 px-4 py-2.5 rounded-xl border border-slate-100 w-full md:w-auto justify-between md:justify-start">
+                <select id="calRunDay" onchange="saveCalSettings()"
+                    class="bg-transparent border-none p-0 text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer flex-grow md:flex-grow-0">
+                    {% for d in days_data %}
+                    <option value="{{ d.day }}" {% if run_day==d.day %}selected{% endif %}>{{ d.label }}</option>
+                    {% endfor %}
+                </select>
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-300 font-light mx-1">|</span>
+                    <input type="time" id="calRunTime" value="{{ run_time }}" onchange="saveCalSettings()"
+                        class="bg-transparent border-none p-0 text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer w-[100px] text-right">
+                </div>
+            </div>
+        </div>
 
         <!-- Auto Run (Top Right) -->
-        <div class="absolute top-4 right-4 flex items-center gap-3">
+        <div
+            class="md:absolute md:top-4 md:right-4 flex items-center justify-between md:justify-end gap-3 w-full md:w-auto order-first md:order-none">
             <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest">{{ "Auto ON" if
                 schedule_enabled else "Auto OFF" }}</span>
             <label class="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" id="scheduleToggle" class="sr-only peer" {% if schedule_enabled %}checked{% endif
                     %} onchange="toggleSchedule()">
                 <div
-                    class="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600">
+                    class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600">
                 </div>
             </label>
         </div>
 
         <!-- Horizon (Bottom Left) -->
-        <div class="absolute bottom-4 left-4 flex flex-col gap-1.5">
+        <div class="md:absolute md:bottom-4 md:left-4 flex flex-col gap-1.5 w-full md:w-auto mt-2 md:mt-0">
             <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Number Of Days</span>
-            <div class="flex items-center gap-4 bg-slate-100/50 px-4 py-2.5 rounded-xl border border-slate-100">
+            <div
+                class="flex items-center gap-4 bg-slate-100/50 px-4 py-2.5 rounded-xl border border-slate-100 w-full md:w-auto">
                 <input type="range" id="calDurationRange" min="1" max="7" value="{{ duration_days }}"
-                    class="w-28 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    class="flex-grow md:w-28 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                     oninput="document.getElementById('calDurationDisplay').innerText = this.value"
                     onchange="saveCalSettings()">
                 <div class="flex items-baseline gap-1 min-w-[40px]">
@@ -73,31 +95,18 @@
             </div>
         </div>
 
-        <!-- Schedule (Top Left) -->
-        <div class="absolute top-4 left-4 flex flex-col gap-1.5">
-            <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Next Run</span>
-            <div class="flex items-center gap-3 bg-slate-100/50 px-4 py-2.5 rounded-xl border border-slate-100">
-                <select id="calRunDay" onchange="saveCalSettings()"
-                    class="bg-transparent border-none p-0 text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer">
-                    {% for d in days_data %}
-                    <option value="{{ d.day }}" {% if run_day==d.day %}selected{% endif %}>{{ d.label }}</option>
-                    {% endfor %}
-                </select>
-                <span class="text-slate-300 font-light mx-1">|</span>
-                <input type="time" id="calRunTime" value="{{ run_time }}" onchange="saveCalSettings()"
-                    class="bg-transparent border-none p-0 text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer w-[100px]">
-            </div>
-        </div>
-
         <!-- Action Group (Bottom Right) -->
-        <div class="absolute bottom-4 right-4 flex flex-col items-end gap-1.5 text-right max-w-[200px]">
-            <div class="flex flex-col items-end leading-none mb-1">
-                <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 whitespace-nowrap">Next
+        <div
+            class="md:absolute md:bottom-4 md:right-4 flex flex-col items-center md:items-end gap-3 md:gap-1.5 text-center md:text-right w-full md:max-w-[200px] mt-2 md:mt-0">
+            <div
+                class="flex items-center justify-between w-full md:flex-col md:items-end leading-none mb-1 px-1 md:px-0">
+                <span
+                    class="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-0 md:mb-1 whitespace-nowrap">Next
                     Run</span>
                 <span class="text-blue-600 font-black text-xs whitespace-nowrap">{{ next_run }}</span>
             </div>
             <button onclick="openModelModal()"
-                class="flex items-center justify-center space-x-3 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl shadow-lg shadow-blue-100 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                class="w-full md:w-auto flex items-center justify-center space-x-3 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 md:py-2.5 rounded-xl shadow-lg shadow-blue-100 transition-all hover:scale-[1.02] active:scale-[0.98]">
                 <span class="text-[11px] font-black uppercase tracking-[0.15em]">Generate Plan</span>
                 <span class="text-lg">⚡</span>
             </button>
