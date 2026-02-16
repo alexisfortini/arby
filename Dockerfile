@@ -26,4 +26,4 @@ COPY . .
 # Expose port (Cloud Run expects 8080)
 EXPOSE 8080
 
-CMD ["gunicorn", "--bind", ":8080", "--workers", "1", "--threads", "8", "--timeout", "0", "app.web.server:app"]
+CMD ["gunicorn", "--bind", ":8080", "--workers", "2", "--threads", "8", "--timeout", "0", "app.web.server:app"]

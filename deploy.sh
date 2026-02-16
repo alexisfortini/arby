@@ -48,7 +48,12 @@ gcloud run deploy arby \
   --platform managed \
   --allow-unauthenticated \
   --add-volume=name=state-vol,type=cloud-storage,bucket=$BUCKET_NAME \
-  --add-volume-mount=volume=state-vol,mount-path=/app/state
+  --add-volume-mount=volume=state-vol,mount-path=/app/state \
+  --memory=512Mi \
+  --cpu=1 \
+  # PERFORMANCE TUNING (Uncomment below to fix "slow" site, costs ~$10-15/mo)
+  # --min-instances=1 \
+  # --cpu-boost \
 
 echo "--- Deployment Complete ---"
 gcloud run services describe arby --region $REGION --format='value(status.url)'

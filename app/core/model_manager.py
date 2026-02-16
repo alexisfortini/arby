@@ -354,7 +354,8 @@ class ModelManager:
             {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "provider": "google", "description": "Reliability. The 'old reliable' from late 2025.", "default_cost_in": 0.10, "default_cost_out": 0.40},
 
             # Anthropic
-            {"id": "claude-opus-4-5-20251101", "name": "Claude 4.5 Opus", "provider": "anthropic", "recommended": True, "top_pick": True, "description": "The absolute peak of Claude architecture.", "default_cost_in": 15.00, "default_cost_out": 75.00},
+            {"id": "claude-opus-4-6-20260205", "name": "Claude 4.6 Opus", "provider": "anthropic", "recommended": True, "top_pick": True, "description": "The absolute peak of Claude architecture (Feb 2026).", "default_cost_in": 5.00, "default_cost_out": 25.00},
+            {"id": "claude-opus-4-5-20251101", "name": "Claude 4.5 Opus", "provider": "anthropic", "description": "The peak of late 2025 Claude architecture.", "default_cost_in": 15.00, "default_cost_out": 75.00},
             {"id": "claude-sonnet-4-5-20250929", "name": "Claude 4.5 Sonnet", "provider": "anthropic", "recommended": True, "description": "Ultra-fast, ultra-smart creative partner.", "default_cost_in": 3.00, "default_cost_out": 15.00},
             {"id": "claude-haiku-4-5-20251001", "name": "Claude 4.5 Haiku", "provider": "anthropic", "description": "Fast and intelligent ultra-efficient model.", "default_cost_in": 0.25, "default_cost_out": 1.25},
             
