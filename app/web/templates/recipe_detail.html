@@ -56,7 +56,7 @@
                 <form action="/library/delete/{{ recipe.id }}" method="POST"
                     onsubmit="return confirm('Delete this recipe? This cannot be undone.');">
                     <button type="submit"
-                        class="bg-white border border-red-200 text-red-500 px-4 py-2 rounded-lg font-medium hover:bg-red-50 transition">
+                        class="bg-white border border-red-200 text-red-500 px-4 py-2 rounded-lg font-medium hover:bg-red-100 transition">
                         Delete
                     </button>
                 </form>
@@ -137,18 +137,17 @@
 
     // Init correct colors on load
     document.addEventListener("DOMContentLoaded", () => {
-        const currentRating = {{ recipe.rating or 0 }
-    };
-    document.querySelectorAll(".star-btn").forEach(btn => {
-        const val = parseInt(btn.dataset.value);
-        if (val <= currentRating) {
-            btn.classList.add("text-yellow-400");
-            btn.innerHTML = "★";
-        } else {
-            btn.classList.add("text-slate-300");
-            btn.innerHTML = "☆";
-        }
-    });
+        const currentRating = {{ recipe.rating or 0 }};
+        document.querySelectorAll(".star-btn").forEach(btn => {
+            const val = parseInt(btn.dataset.value);
+            if (val <= currentRating) {
+                btn.classList.add("text-yellow-400");
+                btn.innerHTML = "★";
+            } else {
+                btn.classList.add("text-slate-300");
+                btn.innerHTML = "☆";
+            }
+        });
     });
 </script>
 {% endblock %}

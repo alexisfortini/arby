@@ -61,7 +61,7 @@ def inject_version():
     except:
         git_hash = "local"
         
-    return dict(app_version="v1.0.15", git_hash=git_hash)
+    return dict(app_version="v1.0.16", git_hash=git_hash)
 
 # --- DYNAMIC AGENT HELPER ---
 def get_agent():
