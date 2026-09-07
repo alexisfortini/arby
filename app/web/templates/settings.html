@@ -66,7 +66,10 @@
         <!-- API Keys -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-slate-800">API Keys 🔑</h2>
+                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="key" class="w-5 h-5 text-amber-500"></i>
+                    <span>API Keys</span>
+                </h2>
                 <span
                     class="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">ACCESS
                     CONTROL</span>
@@ -173,7 +176,10 @@
         <!-- Select Head Chef (Creative) -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-slate-800">Head Chef 👨‍🍳</h2>
+                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="chef-hat" class="w-5 h-5 text-orange-600"></i>
+                    <span>Head Chef</span>
+                </h2>
                 <span
                     class="text-[10px] bg-purple-50 text-purple-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Primary
                     Role</span>
@@ -204,7 +210,10 @@
         <!-- Select Sous Chef (Utility) -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-slate-800">Sous Chef 🔪</h2>
+                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="utensils" class="w-5 h-5 text-blue-600"></i>
+                    <span>Sous Chef</span>
+                </h2>
                 <span
                     class="text-[10px] bg-orange-50 text-orange-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Utility
                     Role</span>
@@ -233,7 +242,10 @@
         <!-- Select Librarian (PDF Ingestion) -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-slate-800">Librarian 📚</h2>
+                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="book-open" class="w-5 h-5 text-pink-600"></i>
+                    <span>Librarian</span>
+                </h2>
                 <span
                     class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Ingestion
                     Role</span>
@@ -264,7 +276,10 @@
         <!-- Model Management -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-slate-800">Manage Chefs 🛠️</h2>
+                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="sliders" class="w-5 h-5 text-slate-600"></i>
+                    <span>Manage Chefs</span>
+                </h2>
                 <span
                     class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Model
                     Library</span>
@@ -377,27 +392,63 @@
                 {% endfor %}
             </div>
 
-            <div class="mt-6 flex justify-between items-center border-t border-slate-100 pt-4">
+            <div class="mt-6 flex flex-wrap gap-2 justify-between items-center border-t border-slate-100 pt-4">
                 <form action="/settings/models/restore" method="POST">
                     <button type="submit"
                         class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 font-black px-4 py-2 rounded-xl transition uppercase tracking-widest">
                         Restore Default List
                     </button>
                 </form>
-                <button onclick="testAllModels()"
-                    class="text-[10px] bg-blue-600 hover:bg-blue-700 text-white font-black px-4 py-2 rounded-xl transition uppercase tracking-widest shadow-lg shadow-blue-100">
-                    Test All Connections 📡
-                </button>
+                <div class="flex items-center gap-2">
+                    <button onclick="refreshAndDiscoverModels()"
+                        class="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-xl transition uppercase tracking-widest shadow-md shadow-emerald-100 inline-flex items-center gap-1.5">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                        <span>Auto-Refresh & Discover</span>
+                    </button>
+                    <button onclick="testAllModels()"
+                        class="text-[10px] bg-blue-600 hover:bg-blue-700 text-white font-black px-4 py-2 rounded-xl transition uppercase tracking-widest shadow-lg shadow-blue-100 inline-flex items-center gap-1.5">
+                        <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+                        <span>Test All Connections</span>
+                    </button>
+                </div>
             </div>
         </div>
 
         <script>
             const activeTests = {}; // modelId -> AbortController
 
+            function refreshAndDiscoverModels() {
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = "Syncing & Discovering... 🔄";
+                btn.disabled = true;
+
+                fetch('/api/models/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.status === 'ok') {
+                            btn.innerHTML = `Discovered ${data.discovered} new, tested ${data.tested}!`;
+                            setTimeout(() => location.reload(), 1500);
+                        } else {
+                            btn.innerHTML = "Sync Failed";
+                            btn.disabled = false;
+                            setTimeout(() => { btn.innerHTML = originalText; }, 3000);
+                        }
+                    })
+                    .catch(err => {
+                        btn.innerHTML = "Network Error";
+                        btn.disabled = false;
+                        setTimeout(() => { btn.innerHTML = originalText; }, 3000);
+                    });
+            }
+
             function testAllModels() {
                 const btn = event.target;
                 const originalText = btn.innerHTML;
-                btn.innerHTML = "Testing All... 🛰️";
+                btn.innerHTML = "Testing All...";
                 btn.disabled = true;
 
                 fetch('/api/test_all', {
@@ -407,16 +458,16 @@
                     .then(r => r.json())
                     .then(data => {
                         if (data.status === 'ok') {
-                            btn.innerHTML = "All Tests Done! ✅";
+                            btn.innerHTML = "All Tests Completed";
                             setTimeout(() => location.reload(), 1500);
                         } else {
-                            btn.innerHTML = "Batch Failed ❌";
+                            btn.innerHTML = "Batch Failed";
                             btn.disabled = false;
                             setTimeout(() => { btn.innerHTML = originalText; }, 3000);
                         }
                     })
                     .catch(err => {
-                        btn.innerHTML = "Network Error 📡";
+                        btn.innerHTML = "Network Error";
                         btn.disabled = false;
                         setTimeout(() => { btn.innerHTML = originalText; }, 3000);
                     });
@@ -453,18 +504,18 @@
                     .then(data => {
                         delete activeTests[modelId];
                         if (data.status === 'ok') {
-                            btn.innerText = "Success! ✅";
+                            btn.innerText = "Success";
                             btn.classList.remove('bg-red-50', 'text-red-600', 'border-red-200');
                             btn.classList.add('text-green-600', 'border-green-400');
                             setTimeout(() => location.reload(), 1000);
                         } else if (data.status === 'rate_limit') {
-                            btn.innerText = "Rate Limit ⚠️";
+                            btn.innerText = "Rate Limit";
                             btn.classList.remove('bg-red-50', 'text-red-600', 'border-red-200');
                             btn.classList.add('text-yellow-600', 'border-yellow-400', 'bg-yellow-50');
                             // alert("Rate Limit Reached: " + data.msg); // Optional: don't alert for bulk test
                             setTimeout(() => location.reload(), 1000);
                         } else {
-                            btn.innerText = "Failed ❌";
+                            btn.innerText = "Failed";
                             btn.classList.remove('bg-red-50', 'text-red-600', 'border-red-200');
                             btn.classList.add('text-red-600', 'border-red-400');
                             // alert("Error: " + data.msg);
@@ -481,7 +532,7 @@
                             delete activeTests[modelId];
                         } else {
                             console.error("Fetch error:", err);
-                            btn.innerText = "Error ⚠️";
+                            btn.innerText = "Error";
                             delete activeTests[modelId];
                         }
                     });
@@ -491,7 +542,10 @@
         <!-- Add New Model Card -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-slate-800">Add Custom Model 👨‍🔬</h2>
+                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-5 h-5 text-indigo-600"></i>
+                    <span>Add Custom Model</span>
+                </h2>
                 <span
                     class="text-[10px] bg-slate-50 text-slate-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Expansion</span>
             </div>
@@ -555,7 +609,10 @@
         <!-- Input Data Controls -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-slate-800">Chef's Brain 🧠</h2>
+                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="brain" class="w-5 h-5 text-purple-600"></i>
+                    <span>Chef's Brain</span>
+                </h2>
                 <span
                     class="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Context
                     Controls</span>
@@ -635,38 +692,21 @@
                     </div>
                 </div>
 
-                <div class="space-y-6">
-                    <!-- Temporary Recipe Ideas -->
-                    <div class="p-6 bg-purple-900 rounded-3xl text-white">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="text-xl">✨</span>
-                            <h3 class="font-bold text-sm tracking-wide uppercase">Current Recipe Ideas</h3>
+                <div class="p-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-3xl border border-purple-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <i data-lucide="lightbulb" class="w-5 h-5 text-purple-600"></i>
+                            <h3 class="font-bold text-sm text-slate-800 uppercase tracking-wide">Recipe Ideas & Dietary Preferences</h3>
                         </div>
-                        <p class="text-xs text-purple-200/60 mb-4 leading-relaxed">Temporary cravings or specific
-                            recipes for your next plan. <span class="text-purple-300 font-bold">These will be
-                                cleared
-                                once a plan is confirmed.</span></p>
-                        <textarea name="ideas" rows="12"
-                            class="w-full bg-purple-800/40 border border-purple-700/50 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-purple-400 text-sm text-purple-50 placeholder-purple-400/50 font-medium"
-                            placeholder="e.g. 'I want to try that Salmon recipe', 'Lots of salads this week'...">{{ current_ideas }}</textarea>
+                        <p class="text-xs text-slate-500 max-w-lg leading-relaxed">
+                            Cravings and permanent household dietary rules are now managed in the dedicated <strong>Ideas</strong> tab.
+                        </p>
                     </div>
-
-                    <!-- Long-term Preferences -->
-                    <div class="p-6 bg-slate-900 rounded-3xl text-white">
-                        <div class="flex items-center gap-2 mb-3">
-                            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            <h3 class="font-bold text-sm tracking-wide uppercase">Long-term Preferences</h3>
-                        </div>
-                        <p class="text-xs text-slate-400 mb-4 leading-relaxed">Dietary rules, family sizes, or
-                            general
-                            cooking styles that Arby should ALWAYS follow.</p>
-                        <textarea name="long_term_preferences" rows="12"
-                            class="w-full bg-slate-800/50 border border-slate-700/50 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-200 placeholder-slate-500 font-medium"
-                            placeholder="e.g. 'We are a family of 4', 'Always prioritize high-protein meals'...">{{ prefs.long_term_preferences }}</textarea>
-                    </div>
+                    <a href="/ideas"
+                        class="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5 flex-shrink-0 min-h-[44px]">
+                        <span>Manage Ideas & Preferences</span>
+                        <span>→</span>
+                    </a>
                 </div>
 
                 <div class="flex justify-end mt-12">
@@ -681,7 +721,10 @@
         <!-- Danger Zone -->
         <div class="bg-red-50 rounded-2xl shadow-sm border border-red-100 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-red-800">Danger Zone ⚠️</h2>
+                <h2 class="text-lg font-bold text-red-800 flex items-center gap-2">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-red-600"></i>
+                    <span>Danger Zone</span>
+                </h2>
                 <span
                     class="text-[10px] bg-red-100 text-red-800 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Data
                     Deletion</span>
@@ -696,8 +739,8 @@
                     <input type="hidden" name="target" value="pantry">
                     <button type="submit"
                         class="w-full bg-white border border-red-200 text-red-600 font-bold py-3 rounded-xl hover:bg-red-100 transition flex items-center justify-center gap-2">
+                        <i data-lucide="carrot" class="w-4 h-4"></i>
                         <span>Clear Pantry</span>
-                        <span class="text-lg">🥫</span>
                     </button>
                 </form>
 
@@ -706,18 +749,18 @@
                     <input type="hidden" name="target" value="library">
                     <button type="submit"
                         class="w-full bg-white border border-red-200 text-red-600 font-bold py-3 rounded-xl hover:bg-red-100 transition flex items-center justify-center gap-2">
+                        <i data-lucide="book-open" class="w-4 h-4"></i>
                         <span>Clear Library</span>
-                        <span class="text-lg">📚</span>
                     </button>
                 </form>
 
                 <form action="/settings/data/delete" method="POST"
-                    onsubmit="return confirm('Are you sure you want to clear your CURRENT PLAN (Calendar)? This will remove all future meals but keep your History.');">
+                    onsubmit="return confirm('Are you sure you want to clear your future meals? This will remove upcoming calendar meals but keep your History.');">
                     <input type="hidden" name="target" value="calendar">
                     <button type="submit"
                         class="w-full bg-white border border-red-200 text-red-600 font-bold py-3 rounded-xl hover:bg-red-100 transition flex items-center justify-center gap-2">
-                        <span>Clear Current Plan</span>
-                        <span class="text-lg">📅</span>
+                        <i data-lucide="calendar" class="w-4 h-4"></i>
+                        <span>Clear Future Meals</span>
                     </button>
                 </form>
 
@@ -726,18 +769,18 @@
                     <input type="hidden" name="target" value="history">
                     <button type="submit"
                         class="w-full bg-white border border-red-200 text-red-600 font-bold py-3 rounded-xl hover:bg-red-100 transition flex items-center justify-center gap-2">
+                        <i data-lucide="clock" class="w-4 h-4"></i>
                         <span>Clear History</span>
-                        <span class="text-lg">🕰️</span>
                     </button>
                 </form>
 
                 <form action="/settings/data/delete" method="POST"
-                    onsubmit="return confirm('Are you sure you want to clear your Next Week\'s ideas AND reset all your preferences (AI models, API keys, etc.)?');">
+                    onsubmit="return confirm('Are you sure you want to clear your ideas AND reset your preferences?');">
                     <input type="hidden" name="target" value="ideas_prefs">
                     <button type="submit"
                         class="w-full bg-white border border-red-200 text-red-600 font-bold py-3 rounded-xl hover:bg-red-100 transition flex items-center justify-center gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
                         <span>Clear Ideas & Preferences</span>
-                        <span class="text-lg">⚙️</span>
                     </button>
                 </form>
 
@@ -746,8 +789,8 @@
                     <input type="hidden" name="target" value="all">
                     <button type="submit"
                         class="w-full bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-700 transition shadow-lg shadow-red-200 flex items-center justify-center gap-2">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
                         <span>Wipe All Data</span>
-                        <span class="text-lg">💣</span>
                     </button>
                 </form>
             </div>
@@ -760,7 +803,10 @@
         <!-- System Locations -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-slate-800">System Data Nodes 📂</h2>
+                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="folder" class="w-5 h-5 text-slate-600"></i>
+                    <span>System Data Nodes</span>
+                </h2>
                 <span
                     class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Developer
                     Paths</span>
@@ -793,7 +839,10 @@
     <div x-show="tab === 'account'" class="space-y-6">
         <!-- Profile Update -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-            <h2 class="text-lg font-bold text-slate-800 mb-4">My Account 👤</h2>
+            <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <i data-lucide="user" class="w-5 h-5 text-slate-600"></i>
+                <span>My Account</span>
+            </h2>
             <form action="/settings/account/update" method="POST">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div>
@@ -824,7 +873,10 @@
 
         <!-- Delete Account -->
         <div class="bg-red-50 rounded-2xl shadow-sm border border-red-100 p-6">
-            <h2 class="text-lg font-bold text-red-800 mb-2">Delete Account ⚠️</h2>
+            <h2 class="text-lg font-bold text-red-800 mb-2 flex items-center gap-2">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-red-600"></i>
+                <span>Delete Account</span>
+            </h2>
             <p class="text-red-700/70 text-sm mb-6">
                 Permanently delete your account and all associated data. This action is irreversible.
             </p>
@@ -841,7 +893,10 @@
         <!-- Admin Terminal Link -->
         <div class="bg-slate-900 rounded-3xl shadow-xl border border-slate-800 p-6 overflow-hidden relative">
             <div class="relative z-10">
-                <h2 class="text-xl font-black text-white mb-2">Admin Terminal 🛠️</h2>
+                <h2 class="text-xl font-black text-white mb-2 flex items-center gap-2">
+                    <i data-lucide="terminal" class="w-5 h-5 text-orange-400"></i>
+                    <span>Admin Terminal</span>
+                </h2>
                 <p class="text-slate-400 text-sm mb-6 max-w-sm">
                     Manage system-wide resources, user storage limits, and account lifecycle.
                 </p>
@@ -866,7 +921,10 @@
     <div x-show="tab === 'notifications'" class="space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-slate-800">Email Notifications 📧</h2>
+                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="mail" class="w-5 h-5 text-blue-600"></i>
+                    <span>Email Notifications</span>
+                </h2>
                 <span
                     class="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-full font-bold uppercase tracking-widest leading-tight">Configuration</span>
             </div>

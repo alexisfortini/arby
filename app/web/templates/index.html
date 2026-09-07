@@ -8,65 +8,76 @@
     <p class="text-slate-500" id="heroQuote">Your kitchen assistant is ready.</p>
 </div>
 
-<!-- Active Plan Focus -->
+<!-- Upcoming Meals Quick Access -->
 {% if active_plan_exists %}
 <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group mb-4">
     <div class="relative z-10 w-full">
-        <h2 class="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Currently Cooking</h2>
-        <div class="text-2xl font-black mb-4 text-slate-800">Your Active Plan</div>
+        <div class="text-2xl font-black mb-4 text-slate-800">Upcoming Meals</div>
         <div class="grid grid-cols-3 gap-3">
             <a href="/plan/view"
-                class="bg-blue-50 text-blue-600 border border-blue-100 py-3 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 hover:bg-blue-100 hover:scale-105 active:scale-95 shadow-sm shadow-blue-50/50">
-                <span>🍴</span> <span>Menu</span>
+                class="bg-blue-50 text-blue-600 border border-blue-100 py-3 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 hover:bg-blue-100 hover:scale-105 active:scale-95 shadow-sm shadow-blue-50/50">
+                <i data-lucide="utensils" class="w-3.5 h-3.5"></i>
+                <span>Meals</span>
             </a>
             <a href="/plan/grocery"
-                class="bg-green-50 text-green-600 border border-green-100 py-3 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 hover:bg-green-100 hover:scale-105 active:scale-95 shadow-sm shadow-green-50/50">
-                <span>🛒</span> <span>Grocery</span>
+                class="bg-green-50 text-green-600 border border-green-100 py-3 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 hover:bg-green-100 hover:scale-105 active:scale-95 shadow-sm shadow-green-50/50">
+                <i data-lucide="shopping-cart" class="w-3.5 h-3.5"></i>
+                <span>Grocery</span>
             </a>
             <a href="/plan/cook"
-                class="bg-red-50 text-red-600 border border-red-100 py-3 rounded-xl text-[10px] sm:text-xs font-black transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 hover:bg-red-100 hover:scale-105 active:scale-95 shadow-sm shadow-red-50/50">
-                <span>🍳</span> <span>Cooking</span>
+                class="bg-red-50 text-red-600 border border-red-100 py-3 rounded-xl text-[10px] sm:text-xs font-black transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 hover:bg-red-100 hover:scale-105 active:scale-95 shadow-sm shadow-red-50/50">
+                <i data-lucide="flame" class="w-3.5 h-3.5"></i>
+                <span>Cooking</span>
             </a>
         </div>
     </div>
-    <div class="absolute top-6 right-6 text-4xl filter grayscale opacity-10 pointer-events-none">✨</div>
 </div>
 {% endif %}
 
 <!-- Actions Grid -->
-<div class="grid grid-cols-2 gap-4 mb-4">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
     <a href="/calendar"
-        class="block bg-green-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-green-200 transition duration-200">
-        <div class="text-2xl mb-2">📅</div>
+        class="group block bg-green-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-green-200 transition duration-200">
+        <div class="w-10 h-10 mx-auto mb-2.5 rounded-2xl bg-green-100/80 text-green-700 flex items-center justify-center transition-transform group-hover:scale-110">
+            <i data-lucide="calendar" class="w-5 h-5"></i>
+        </div>
         <div class="font-semibold text-green-900">Calendar</div>
-        <div class="text-xs text-green-700/60 mt-1">Schedule your plan</div>
+        <div class="text-xs text-green-700/60 mt-1">Schedule your meals</div>
     </a>
 
     <a href="/pantry"
-        class="block bg-orange-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-orange-200 transition duration-200">
-        <div class="text-2xl mb-2">🥕</div>
+        class="group block bg-orange-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-orange-200 transition duration-200">
+        <div class="w-10 h-10 mx-auto mb-2.5 rounded-2xl bg-orange-100/80 text-orange-700 flex items-center justify-center transition-transform group-hover:scale-110">
+            <i data-lucide="carrot" class="w-5 h-5"></i>
+        </div>
         <div class="font-semibold text-orange-900">Pantry</div>
         <div class="text-xs text-orange-700/60 mt-1">Avoid any waste</div>
     </a>
 
     <a href="/library"
-        class="block bg-pink-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-pink-200 transition duration-200">
-        <div class="text-2xl mb-2">📚</div>
+        class="group block bg-pink-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-pink-200 transition duration-200">
+        <div class="w-10 h-10 mx-auto mb-2.5 rounded-2xl bg-pink-100/80 text-pink-700 flex items-center justify-center transition-transform group-hover:scale-110">
+            <i data-lucide="book-open" class="w-5 h-5"></i>
+        </div>
         <div class="font-semibold text-pink-900">Library</div>
         <div class="text-xs text-pink-700/60 mt-1">Browse all recipes</div>
     </a>
 
     <a href="/ideas"
-        class="block bg-purple-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-purple-200 transition duration-200">
-        <div class="text-2xl mb-2">💡</div>
+        class="group block bg-purple-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-purple-200 transition duration-200">
+        <div class="w-10 h-10 mx-auto mb-2.5 rounded-2xl bg-purple-100/80 text-purple-700 flex items-center justify-center transition-transform group-hover:scale-110">
+            <i data-lucide="lightbulb" class="w-5 h-5"></i>
+        </div>
         <div class="font-semibold text-purple-900">Ideas</div>
         <div class="text-xs text-purple-700/60 mt-1">Set the mood</div>
     </a>
 
     <button onclick="openModelModal()"
-        class="col-span-2 block bg-blue-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-blue-200 transition duration-200 group relative overflow-hidden">
-        <div class="text-2xl mb-2">⚡️</div>
-        <div class="font-semibold text-blue-900">Generate Plan</div>
+        class="col-span-2 md:col-span-4 block bg-blue-50 rounded-3xl p-6 text-center border border-slate-100 shadow-sm hover:border-blue-200 transition duration-200 group relative overflow-hidden">
+        <div class="w-10 h-10 mx-auto mb-2 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center transition-transform group-hover:scale-110">
+            <i data-lucide="sparkles" class="w-5 h-5"></i>
+        </div>
+        <div class="font-semibold text-blue-900">Plan Meals</div>
         <div class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full mt-2 inline-block">
             Chef: {{ current_model.name }}
         </div>
@@ -84,7 +95,7 @@
     <div class="flex justify-between items-center mb-4">
         <h2
             class="text-sm font-bold text-slate-400 uppercase tracking-wide group-hover:text-blue-500 transition-colors">
-            Plan Status</h2>
+            Schedule Status</h2>
 
         <!-- Schedule Toggle -->
         <div class="flex items-center gap-2" onclick="event.stopPropagation()">
@@ -138,7 +149,7 @@
     class="fixed inset-0 bg-black/50 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity">
     <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden scale-100 transition-transform">
         <div class="p-6 border-b border-slate-100 flex justify-between items-center">
-            <h3 class="text-lg font-bold text-slate-800">Plan Settings</h3>
+            <h3 class="text-lg font-bold text-slate-800">Schedule Settings</h3>
             <button onclick="closePlanSettingsModal()"
                 class="text-2xl text-slate-400 hover:text-slate-600">&times;</button>
         </div>

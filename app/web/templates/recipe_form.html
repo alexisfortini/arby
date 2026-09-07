@@ -12,7 +12,7 @@
             {% if recipe %}Edit Recipe{% else %}Add New Recipe{% endif %}
         </h1>
 
-        <form method="POST">
+        <form method="POST" enctype="multipart/form-data">
             <div class="space-y-6">
                 <!-- Name -->
                 <div>
@@ -62,6 +62,30 @@
                             <option value="{{ prot }}">
                                 {% endfor %}
                         </datalist>
+                    </div>
+                </div>
+
+                <!-- Recipe Image Attachment -->
+                <div class="p-4 bg-stone-50 rounded-2xl border border-stone-200/80 space-y-3">
+                    <label class="block text-sm font-semibold text-slate-700">Recipe Photo</label>
+                    {% if recipe and recipe.image_url %}
+                    <div class="flex items-center gap-4 mb-2">
+                        <img src="{{ recipe.image_url }}" alt="{{ recipe.name }}" class="w-16 h-16 rounded-xl object-cover border border-stone-200 shadow-sm">
+                        <span class="text-xs text-slate-500">Current photo attached. Uploading a new file or entering a new URL will replace it.</span>
+                    </div>
+                    {% endif %}
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <span class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Upload File</span>
+                            <input type="file" name="image_file" accept="image/*"
+                                class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 cursor-pointer">
+                        </div>
+                        <div>
+                            <span class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Or Image URL</span>
+                            <input type="url" name="image_url" value="{{ recipe.image_url if recipe and recipe.image_url else '' }}"
+                                placeholder="https://example.com/photo.jpg"
+                                class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-green-500">
+                        </div>
                     </div>
                 </div>
 

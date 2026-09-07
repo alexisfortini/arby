@@ -5,17 +5,52 @@
 <div x-data='{ 
     search: "", 
     sortBy: "name",
+    filterTab: "all",
     items: {{ items_raw | tojson | safe }},
+    
+    getExpiryDiffDays(item) {
+        if (!item.expiry_date) return null;
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        const exp = new Date(item.expiry_date + "T00:00:00");
+        return Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+    },
+
+    getExpiryStatus(item) {
+        const diff = this.getExpiryDiffDays(item);
+        if (diff === null) return null;
+        if (diff < 0) return { label: "Expired", badgeClass: "bg-red-50 text-red-700 border-red-200" };
+        if (diff <= 3) return { label: diff === 0 ? "Expires today" : `Expires in ${diff}d`, badgeClass: "bg-amber-50 text-amber-700 border-amber-200 font-bold" };
+        return { label: `Exp: ${item.expiry_date}`, badgeClass: "bg-stone-100/80 text-stone-500 border-stone-200" };
+    },
+
+    matchesCategory(item, cat) {
+        if (cat === "all") return true;
+        if (cat === "expiring") {
+            const diff = this.getExpiryDiffDays(item);
+            return diff !== null && diff <= 3;
+        }
+        const str = ((item.item || "") + " " + (item.brand || "")).toLowerCase();
+        if (cat === "produce") return /apple|banana|berry|lemon|lime|onion|garlic|potato|tomato|carrot|lettuce|spinach|herb|cilantro|avocado|pepper|broccoli/i.test(str);
+        if (cat === "dairy") return /milk|cream|cheese|butter|yogurt|egg/i.test(str);
+        if (cat === "protein") return /chicken|beef|pork|fish|salmon|shrimp|turkey|tofu|bean|lentil/i.test(str);
+        if (cat === "spices") return /salt|pepper|paprika|cumin|oregano|cinnamon|sauce|oil|vinegar|soy|mustard/i.test(str);
+        if (cat === "pantry") return /flour|sugar|rice|pasta|noodle|cereal|oat|bread|canned|snack/i.test(str);
+        return true;
+    },
+
     get filteredItems() {
-        let filtered = this.items.filter(i => 
-            i.item.toLowerCase().includes(this.search.toLowerCase()) || 
-            (i.brand && i.brand.toLowerCase().includes(this.search.toLowerCase()))
-        );
+        let filtered = this.items.filter(i => {
+            const matchSearch = i.item.toLowerCase().includes(this.search.toLowerCase()) || 
+                                (i.brand && i.brand.toLowerCase().includes(this.search.toLowerCase()));
+            const matchCategory = this.matchesCategory(i, this.filterTab);
+            return matchSearch && matchCategory;
+        });
         
         if (this.sortBy === "name") {
             filtered.sort((a, b) => a.item.localeCompare(b.item));
         } else if (this.sortBy === "newest") {
-            filtered.sort((a, b) => new Date(b.added_on) - new Date(a.added_on));
+            filtered.sort((a, b) => new Date(b.added_on || 0) - new Date(a.added_on || 0));
         } else if (this.sortBy === "expiry") {
             filtered.sort((a, b) => {
                 if (!a.expiry_date) return 1;
@@ -26,196 +61,242 @@
         return filtered;
     }
 }'>
+    <!-- Header -->
     <div class="flex items-center justify-between mb-4">
-        <h1 class="text-2xl font-bold text-slate-800">Your Pantry</h1>
-        <a href="/" class="text-sm font-semibold text-slate-500 hover:text-slate-800">Back</a>
+        <div>
+            <h1 class="text-2xl font-black text-slate-800 tracking-tight">Your Pantry</h1>
+            <p class="text-xs text-stone-400 font-medium">Manage and track your ingredients in real-time</p>
+        </div>
+        <a href="/" class="text-xs font-bold text-stone-500 hover:text-stone-800 px-3 py-1.5 rounded-lg hover:bg-stone-100 transition-colors">
+            ← Dashboard
+        </a>
     </div>
 
-    <div class="flex justify-center gap-3 mb-6" x-data="{ uploading: false }">
+    <!-- Actions Bar -->
+    <div class="flex flex-wrap justify-center sm:justify-start gap-2.5 mb-6" x-data="{ uploading: false }">
         <form action="/pantry/scan" method="POST" enctype="multipart/form-data" id="scanForm" class="inline-flex">
             <input type="file" name="image" id="cameraInput" accept="image/*" capture="environment" class="hidden"
-                @change="uploading=true; $el.form.submit()">
+                @change="uploading = true; $el.form.submit()">
             <button type="button" onclick="document.getElementById('cameraInput').click()"
-                class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-xs font-bold transition-all shadow-md active:scale-95">
-                <span x-show="!uploading">📷</span>
-                <span x-show="uploading" class="animate-spin">⏳</span>
-                <span>Scan Photo</span>
+                class="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-orange-600/20 active:scale-95 min-h-[44px]">
+                <span x-show="!uploading" class="flex items-center gap-1.5">
+                    <i data-lucide="camera" class="w-4 h-4"></i>
+                    <span>Scan Photo</span>
+                </span>
+                <span x-show="uploading" class="flex items-center gap-1.5">
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                    <span>Analyzing...</span>
+                </span>
             </button>
         </form>
 
         <button onclick="toggleSmartAdd()" id="btnSmartAdd"
-            class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-full text-xs font-bold transition-all border border-indigo-100 shadow-sm">
-            <span>✨</span>
+            class="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-50 hover:bg-orange-100/80 text-orange-700 rounded-xl text-xs font-bold transition-all border border-orange-200/80 shadow-sm min-h-[44px]">
+            <i data-lucide="sparkles" class="w-4 h-4 text-orange-600"></i>
             <span>Smart Paste</span>
         </button>
+
         <button onclick="openAddModal()"
-            class="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-full text-xs font-bold transition-all border border-slate-100 shadow-sm">
-            <span>✏️</span>
+            class="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-stone-50 text-slate-700 rounded-xl text-xs font-bold transition-all border border-stone-200 shadow-sm min-h-[44px]">
+            <i data-lucide="plus" class="w-4 h-4 text-stone-500"></i>
             <span>Manual Add</span>
         </button>
     </div>
 
-    <!-- Quick Add Form (Hidden by default) -->
-    <div id="smartAddForm" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 mb-6 hidden">
-        <label class="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-3">Smart Import (Paste
-            List)</label>
+    <!-- Smart Paste Dropdown Form -->
+    <div id="smartAddForm" class="bg-white rounded-2xl shadow-sm p-5 border border-stone-200 mb-6 hidden">
+        <div class="flex items-center justify-between mb-2">
+            <label class="text-xs font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="wand-2" class="w-3.5 h-3.5 text-orange-600"></i>
+                <span>Smart Import (Natural Language)</span>
+            </label>
+            <button onclick="toggleSmartAdd()" class="text-xs text-stone-400 hover:text-stone-600">Close</button>
+        </div>
         <form action="/pantry/add" method="POST">
             <textarea name="ingredients" rows="2"
-                class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-3"
-                placeholder="e.g. Bought a bag of rice, 3 avocados, and some milk."></textarea>
+                class="w-full bg-stone-50 border border-stone-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 mb-3"
+                placeholder="e.g. Bought 2 bags of pasta, 3 avocados, olive oil, and some whole milk."></textarea>
             <button type="submit"
-                class="w-full bg-slate-900 text-white font-semibold py-3 rounded-xl hover:opacity-90 transition">
-                Process with AI
+                class="w-full bg-slate-900 text-white font-bold py-2.5 rounded-xl hover:bg-slate-800 transition flex items-center justify-center gap-2 text-xs shadow-md">
+                <i data-lucide="sparkles" class="w-4 h-4 text-orange-400"></i>
+                <span>Parse and Add to Inventory</span>
             </button>
         </form>
     </div>
 
+    <!-- Category Filter Tabs -->
+    <div class="flex items-center gap-1.5 mb-4 overflow-x-auto pb-1 text-xs">
+        <template x-for="tab in [
+            { id: 'all', label: 'All Items' },
+            { id: 'expiring', label: 'Expiring Soon' },
+            { id: 'produce', label: 'Produce' },
+            { id: 'dairy', label: 'Dairy & Eggs' },
+            { id: 'protein', label: 'Protein' },
+            { id: 'pantry', label: 'Pantry' },
+            { id: 'spices', label: 'Spices & Sauces' }
+        ]">
+            <button type="button" @click="filterTab = tab.id"
+                class="px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap border min-h-[36px]"
+                :class="filterTab === tab.id ? 'bg-slate-900 text-white border-slate-900 shadow-sm' : 'bg-white text-slate-600 border-stone-200 hover:border-stone-300 hover:bg-stone-50'"
+                x-text="tab.label">
+            </button>
+        </template>
+    </div>
+
     <!-- Search and Sort -->
-    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+    <div class="flex flex-col sm:flex-row gap-2.5 mb-5">
         <div class="relative flex-1">
-            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                </svg>
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-stone-400">
+                <i data-lucide="search" class="w-4 h-4"></i>
             </span>
-            <input type="text" x-model="search" placeholder="Search pantry..."
-                class="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+            <input type="text" x-model="search" placeholder="Search ingredients, brands..."
+                class="block w-full pl-10 pr-4 py-2.5 border border-stone-200 rounded-xl bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all shadow-sm">
         </div>
         <select x-model="sortBy"
-            class="block w-full sm:w-48 px-3 py-2 border border-slate-200 rounded-xl bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-            <option value="name">Sort by Name</option>
-            <option value="newest">Sort by Newest</option>
-            <option value="expiry">Sort by Expiry</option>
+            class="block w-full sm:w-44 px-3.5 py-2.5 border border-stone-200 rounded-xl bg-white text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all shadow-sm">
+            <option value="name">Sort: Name (A-Z)</option>
+            <option value="newest">Sort: Recently Added</option>
+            <option value="expiry">Sort: Expiration Date</option>
         </select>
     </div>
 
     <!-- Inventory List -->
-    <div class="space-y-2">
+    <div>
         <template x-if="filteredItems.length > 0">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <template x-for="(item, index) in filteredItems" :key="item.id || index">
-                <div class="bg-white p-3 rounded-xl border border-slate-100 transition hover:shadow-md cursor-pointer flex justify-between items-center group"
-                    @click="openEditModalFromItem(item)">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <span class="font-bold text-slate-800 truncate" x-text="item.item"></span>
+                <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 hover:border-orange-200 transition-all shadow-sm hover:shadow-md flex justify-between items-center group">
+                    <!-- Left: Item Info (Tappable to Edit) -->
+                    <div class="flex-1 min-w-0 cursor-pointer pr-3" @click="openEditModalFromItem(item)">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-bold text-slate-800 text-sm truncate" x-text="item.item"></span>
                             <span x-show="item.brand"
-                                class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium truncate"
+                                class="text-[10px] bg-stone-100 text-stone-600 px-2 py-0.5 rounded-md font-semibold truncate border border-stone-200"
                                 x-text="item.brand"></span>
                         </div>
-                        <div class="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2">
-                            <span x-text="'Added: ' + item.added_on"></span>
-                            <template x-if="item.expiry_date">
-                                <span class="flex items-center gap-1"
-                                    :class="new Date(item.expiry_date) < new Date() ? 'text-red-500' : ''">
-                                    <span class="w-1 h-1 rounded-full bg-slate-300"></span>
-                                    <span x-text="'Exp: ' + item.expiry_date"></span>
-                                </span>
+                        <div class="text-xs text-stone-400 mt-1 flex items-center gap-2 flex-wrap">
+                            <span x-text="'Added ' + (item.added_on || 'recently')"></span>
+                            <template x-if="getExpiryStatus(item)">
+                                <span class="px-2 py-0.5 rounded-md text-[10px] border"
+                                    :class="getExpiryStatus(item).badgeClass"
+                                    x-text="getExpiryStatus(item).label"></span>
                             </template>
                         </div>
                     </div>
-                    <div class="flex items-center gap-3">
+
+                    <!-- Right: Quantity and +1 Action -->
+                    <div class="flex items-center gap-3 flex-shrink-0">
                         <div class="text-right">
-                            <span class="bg-blue-50 text-blue-700 text-[11px] font-black px-2 py-1 rounded-lg"
+                            <span class="bg-orange-50 text-orange-700 text-xs font-extrabold px-2.5 py-1 rounded-lg border border-orange-200/60 inline-block"
                                 x-text="item.quantity + ' ' + item.unit"></span>
-                            <div x-show="item.size_value" class="text-[9px] text-slate-400 mt-0.5"
+                            <div x-show="item.size_value" class="text-[10px] text-stone-400 mt-0.5 font-medium"
                                 x-text="'(' + item.size_value + ' ' + item.size_unit + ')'"></div>
                         </div>
-                        <button @click.stop="quickIncrementByItem(item)"
-                            class="w-8 h-8 flex items-center justify-center bg-slate-50 hover:bg-blue-100 text-slate-400 hover:text-blue-600 rounded-xl transition-all border border-slate-100 hover:border-blue-200">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M12 4v16m8-8H4"></path>
-                            </svg>
+                        <!-- Isolated Touch Target for Quick Increment -->
+                        <button type="button" @click.stop="quickIncrementByItem(item)"
+                            aria-label="Add one to inventory"
+                            title="Add 1"
+                            class="w-10 h-10 flex items-center justify-center bg-stone-50 hover:bg-orange-50 text-stone-400 hover:text-orange-600 rounded-xl transition-all border border-stone-200 hover:border-orange-300 active:scale-90 shadow-sm">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
                         </button>
                     </div>
                 </div>
             </template>
+            </div>
         </template>
+
+        <!-- Empty State -->
         <template x-if="filteredItems.length === 0">
-            <div class="text-center py-12 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                <span x-show="search" x-text="'No items matching \'' + search + '\''"></span>
-                <span x-show="!search">Your pantry is empty.<br>Add some items above!</span>
+            <div class="text-center py-16 px-4 bg-white rounded-2xl border border-dashed border-stone-200 shadow-sm">
+                <div class="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center mx-auto mb-3">
+                    <i data-lucide="package-open" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-sm font-bold text-slate-800 mb-1" x-text="search ? 'No matching ingredients found' : 'Your pantry is empty'"></h3>
+                <p class="text-xs text-stone-400 max-w-xs mx-auto" x-text="search ? 'Try clearing your search or checking another category.' : 'Scan a grocery photo or paste your receipt above to get started.'"></p>
             </div>
         </template>
     </div>
 </div>
 
-<!-- Edit Modal -->
-<div id="editModal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
-        <div class="p-6 border-b border-slate-100 flex justify-between items-center">
-            <h3 class="text-xl font-bold">Edit Item</h3>
-            <button onclick="closeEditModal()" class="text-2xl text-slate-400 hover:text-slate-600">&times;</button>
+<!-- Edit / Add Modal -->
+<div id="editModal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="pantryModalTitle"
+    class="fixed inset-0 bg-stone-900/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-stone-200 overflow-hidden scale-100 transition-transform">
+        <div class="p-5 border-b border-stone-100 flex justify-between items-center bg-stone-50/80">
+            <h3 id="pantryModalTitle" class="text-base font-bold text-slate-800">Edit Item</h3>
+            <button onclick="closeEditModal()" aria-label="Close modal" class="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-stone-200/60 transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
         </div>
 
         <form id="editForm" method="POST">
             <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-
                 <!-- Main Info -->
                 <div class="grid grid-cols-2 gap-4">
                     <div class="col-span-2">
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Item Name</label>
-                        <input type="text" name="item" id="modal_item" class="w-full border rounded-lg p-2" required>
+                        <label for="modal_item" class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Item Name</label>
+                        <input type="text" name="item" id="modal_item" class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" required>
                     </div>
                     <div class="col-span-2">
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Brand</label>
-                        <input type="text" name="brand" id="modal_brand" class="w-full border rounded-lg p-2">
+                        <label for="modal_brand" class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Brand (Optional)</label>
+                        <input type="text" name="brand" id="modal_brand" class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
                     </div>
                 </div>
 
                 <!-- Quantity -->
-                <div class="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg">
+                <div class="grid grid-cols-2 gap-4 bg-stone-50 p-3.5 rounded-xl border border-stone-200/70">
                     <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Quantity</label>
+                        <label for="modal_quantity" class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Quantity</label>
                         <input type="number" step="0.1" name="quantity" id="modal_quantity"
-                            class="w-full border rounded-lg p-2" required>
+                            class="w-full bg-white border border-stone-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" required>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Unit</label>
-                        <input type="text" name="unit" id="modal_unit" class="w-full border rounded-lg p-2" required>
+                        <label for="modal_unit" class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Unit</label>
+                        <input type="text" name="unit" id="modal_unit" placeholder="count, can, lbs, g"
+                            class="w-full bg-white border border-stone-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" required>
                     </div>
                 </div>
 
                 <!-- Size Info -->
-                <div class="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg">
+                <div class="grid grid-cols-2 gap-4 bg-stone-50 p-3.5 rounded-xl border border-stone-200/70">
                     <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Size Value</label>
+                        <label for="modal_size_value" class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Package Size Value</label>
                         <input type="number" step="0.1" name="size_value" id="modal_size_value"
-                            class="w-full border rounded-lg p-2">
+                            class="w-full bg-white border border-stone-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Size Unit</label>
-                        <input type="text" name="size_unit" id="modal_size_unit" class="w-full border rounded-lg p-2">
-                        <p class="text-[10px] text-slate-400 mt-1">e.g. oz, g, ml</p>
+                        <label for="modal_size_unit" class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Package Size Unit</label>
+                        <input type="text" name="size_unit" id="modal_size_unit" placeholder="oz, ml, g"
+                            class="w-full bg-white border border-stone-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
                     </div>
                 </div>
 
                 <!-- Dates -->
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Purchased</label>
+                        <label for="modal_purchase_date" class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Purchased</label>
                         <input type="date" name="purchase_date" id="modal_purchase_date"
-                            class="w-full border rounded-lg p-2">
+                            class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Expires</label>
+                        <label for="modal_expiry_date" class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Expires</label>
                         <input type="date" name="expiry_date" id="modal_expiry_date"
-                            class="w-full border rounded-lg p-2">
+                            class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
                     </div>
                 </div>
-
             </div>
 
-            <div class="p-6 border-t border-slate-100 flex justify-between">
+            <div class="p-5 border-t border-stone-100 flex justify-between items-center bg-stone-50/50">
                 <button type="button" onclick="deleteItem()" id="deleteBtn"
-                    class="text-red-600 font-semibold text-sm hover:underline">Delete Item</button>
-                <div class="space-x-2">
+                    class="text-red-600 font-bold text-xs hover:underline py-2 px-3">Delete Item</button>
+                <div class="space-x-2 flex items-center">
                     <button type="button" onclick="closeEditModal()"
-                        class="px-4 py-2 text-slate-500 font-semibold hover:bg-slate-100 rounded-lg">Cancel</button>
+                        class="px-4 py-2 text-stone-500 text-xs font-bold hover:bg-stone-200/60 rounded-xl transition-colors">Cancel</button>
                     <button type="submit"
-                        class="px-6 py-2 bg-slate-900 text-white font-semibold rounded-lg hover:opacity-90">Save
-                        Changes</button>
+                        class="px-5 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition shadow-sm">Save Changes</button>
                 </div>
             </div>
         </form>
@@ -227,52 +308,49 @@
 
 <script>
     function openEditModalFromItem(item) {
-        // Find actual index in original items array
-        const rawItems = {{ items_raw | tojson | safe
-    }};
-    const index = rawItems.findIndex(i => JSON.stringify(i) === JSON.stringify(item));
+        const rawItems = {{ items_raw | tojson | safe }};
+        const index = rawItems.findIndex(i => JSON.stringify(i) === JSON.stringify(item));
 
-    document.getElementById('editForm').action = '/pantry/edit/' + index;
-    document.getElementById('deleteForm').action = '/pantry/delete/' + index;
+        document.getElementById('editForm').action = '/pantry/edit/' + index;
+        document.getElementById('deleteForm').action = '/pantry/delete/' + index;
 
-    document.getElementById('modal_item').value = item.item;
-    document.getElementById('modal_brand').value = item.brand || '';
-    document.getElementById('modal_quantity').value = item.quantity;
-    document.getElementById('modal_unit').value = item.unit;
-    document.getElementById('modal_size_value').value = item.size_value || '';
-    document.getElementById('modal_size_unit').value = item.size_unit || '';
-    document.getElementById('modal_purchase_date').value = item.purchase_date || '';
-    document.getElementById('modal_expiry_date').value = item.expiry_date || '';
+        document.getElementById('modal_item').value = item.item || '';
+        document.getElementById('modal_brand').value = item.brand || '';
+        document.getElementById('modal_quantity').value = item.quantity || '';
+        document.getElementById('modal_unit').value = item.unit || '';
+        document.getElementById('modal_size_value').value = item.size_value || '';
+        document.getElementById('modal_size_unit').value = item.size_unit || '';
+        document.getElementById('modal_purchase_date').value = item.purchase_date || '';
+        document.getElementById('modal_expiry_date').value = item.expiry_date || '';
 
-    document.getElementById('deleteBtn').classList.remove('hidden');
-    document.querySelector('#editModal h3').innerText = "Edit Item";
-    document.getElementById('editModal').classList.remove('hidden');
+        document.getElementById('deleteBtn').classList.remove('hidden');
+        document.getElementById('pantryModalTitle').innerText = "Edit Item";
+        document.getElementById('editModal').classList.remove('hidden');
+        renderLucide();
     }
 
     function openAddModal() {
         document.getElementById('editForm').action = '/pantry/add_manual';
-        // Hide delete, it's a new item
         document.getElementById('deleteBtn').classList.add('hidden');
 
-        // Reset fields
         document.getElementById('modal_item').value = '';
         document.getElementById('modal_brand').value = '';
-        document.getElementById('modal_quantity').value = '';
-        document.getElementById('modal_unit').value = '';
+        document.getElementById('modal_quantity').value = '1';
+        document.getElementById('modal_unit').value = 'count';
         document.getElementById('modal_size_value').value = '';
         document.getElementById('modal_size_unit').value = '';
         document.getElementById('modal_purchase_date').value = new Date().toISOString().split('T')[0];
         document.getElementById('modal_expiry_date').value = '';
 
-        // Update Title
-        document.querySelector('#editModal h3').innerText = "Add Manual Item";
-
+        document.getElementById('pantryModalTitle').innerText = "Add Manual Item";
         document.getElementById('editModal').classList.remove('hidden');
+        renderLucide();
     }
 
     function toggleSmartAdd() {
         const form = document.getElementById('smartAddForm');
         form.classList.toggle('hidden');
+        renderLucide();
     }
 
     function closeEditModal() {
@@ -286,20 +364,28 @@
     }
 
     function quickIncrementByItem(item) {
-        const rawItems = {{ items_raw | tojson | safe
-    }};
-    const index = rawItems.findIndex(i => JSON.stringify(i) === JSON.stringify(item));
+        const rawItems = {{ items_raw | tojson | safe }};
+        const index = rawItems.findIndex(i => JSON.stringify(i) === JSON.stringify(item));
 
-    fetch('/pantry/increment/' + index, { method: 'POST' })
-        .then(r => r.json())
-        .then(data => {
-            if (data.status === 'ok') {
-                // Update the local item object which will trigger Alpine refresh
-                item.quantity = data.new_quantity;
-            }
-        })
-        .catch(err => console.error(err));
+        fetch('/pantry/increment/' + index, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    item.quantity = data.new_quantity;
+                    if (window.showToast) {
+                        window.showToast(`+1 ${item.item} (${item.quantity} ${item.unit})`);
+                    }
+                }
+            })
+            .catch(err => console.error(err));
     }
+
+    document.getElementById('editModal').addEventListener('click', function(e) {
+        if (e.target === this) closeEditModal();
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeEditModal();
+    });
 </script>
 
 {% endblock %}

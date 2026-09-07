@@ -7,12 +7,12 @@
     <div class="flex flex-wrap gap-2">
         <button onclick="startSync()" id="syncBtn"
             class="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-100 transition whitespace-nowrap flex items-center gap-2">
-            <span>🔄</span> <span>Sync PDFs</span>
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i> <span>Sync PDFs</span>
         </button>
 
         <a href="/library/add"
-            class="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition whitespace-nowrap">
-            + Add Recipe
+            class="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition whitespace-nowrap inline-flex items-center gap-1.5">
+            <i data-lucide="plus" class="w-4 h-4"></i> <span>Add Recipe</span>
         </a>
     </div>
 </div>
@@ -36,8 +36,9 @@
         </button>
     </div>
 
-    <a href="/library/ignored" class="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1">
-        <span>🗑️</span> Manage Ignored Files
+    <a href="/library/ignored" class="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1.5">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+        <span>Manage Ignored Files</span>
     </a>
 </div>
 
@@ -94,7 +95,8 @@
 
         // Change to Stop Button
         btn.disabled = false;
-        btn.innerHTML = "<span>🛑</span> <span>Stop Sync</span>";
+        btn.innerHTML = '<i data-lucide="square" class="w-4 h-4"></i> <span>Stop Sync</span>';
+        if (window.lucide) lucide.createIcons();
         btn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-blue-50', 'text-blue-600');
         btn.classList.add('bg-red-50', 'text-red-600');
         btn.onclick = cancelSync;
@@ -139,7 +141,8 @@
             .then(r => r.json())
             .then(data => {
                 const btn = document.getElementById('syncBtn');
-                btn.innerHTML = "<span>🛑</span> <span>Stopping...</span>";
+                btn.innerHTML = '<i data-lucide="square" class="w-4 h-4 animate-pulse"></i> <span>Stopping...</span>';
+                if (window.lucide) lucide.createIcons();
             });
     }
 
@@ -154,7 +157,8 @@
         const container = document.getElementById('syncProgressContainer');
 
         btn.disabled = false;
-        btn.innerHTML = "<span>🔄</span> <span>Sync PDFs</span>";
+        btn.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4"></i> <span>Sync PDFs</span>';
+        if (window.lucide) lucide.createIcons();
         btn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-red-50', 'text-red-600');
         btn.classList.add('bg-blue-50', 'text-blue-600');
         btn.onclick = startSync;
@@ -290,12 +294,12 @@
     <div class="h-6 w-px bg-slate-700"></div>
     <div class="flex items-center gap-2">
         <button onclick="openBatchEdit()"
-            class="hover:text-blue-400 font-medium transition-colors text-sm flex items-center gap-1">
-            <span>✏️</span> Edit
+            class="hover:text-blue-400 font-medium transition-colors text-sm flex items-center gap-1.5">
+            <i data-lucide="pencil" class="w-3.5 h-3.5"></i> <span>Edit</span>
         </button>
         <button onclick="batchDelete()"
-            class="hover:text-red-400 font-medium transition-colors text-sm flex items-center gap-1 ml-2">
-            <span>🗑️</span> Delete
+            class="hover:text-red-400 font-medium transition-colors text-sm flex items-center gap-1.5 ml-2">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> <span>Delete</span>
         </button>
         <button onclick="clearSelection()" class="hover:text-slate-300 font-medium transition-colors text-sm ml-4">
             ✕
@@ -357,6 +361,11 @@
                 class="recipe-checkbox w-4 h-4 rounded border-slate-300 text-green-600 focus:ring-green-500 shadow-sm transition-opacity opacity-0 group-hover:opacity-100 checked:opacity-100"
                 value="{{ recipe.id }}" onchange="updateSelection()">
         </label>
+        {% if recipe.image_url %}
+        <div class="h-36 w-full overflow-hidden bg-stone-100 border-b border-stone-100 flex-shrink-0">
+            <img src="{{ recipe.image_url }}" alt="{{ recipe.name }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        </div>
+        {% endif %}
         <div class="p-4 flex-grow flex flex-col justify-between"> <!-- Removed pl-10 -->
             <div>
                 <div class="flex flex-wrap gap-1 mb-3">

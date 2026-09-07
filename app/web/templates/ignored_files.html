@@ -19,7 +19,7 @@
             {% for filename in blacklist %}
             <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
                 <div class="flex items-center gap-3">
-                    <span class="text-2xl">📄</span>
+                    <i data-lucide="file-text" class="w-5 h-5 text-slate-400 flex-shrink-0"></i>
                     <span class="font-mono text-sm text-slate-700">{{ filename }}</span>
                 </div>
                 <form action="/library/restore/{{ filename }}" method="POST">
@@ -33,7 +33,9 @@
         </div>
         {% else %}
         <div class="text-center py-12 text-slate-400">
-            <div class="text-4xl mb-3">🗑️</div>
+            <div class="w-12 h-12 rounded-2xl bg-stone-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="trash-2" class="w-6 h-6"></i>
+            </div>
             <p>No ignored files.</p>
         </div>
         {% endif %}

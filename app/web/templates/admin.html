@@ -111,7 +111,9 @@
 
         {% if not user_stats %}
         <div class="p-20 text-center">
-            <div class="text-4xl mb-4">👻</div>
+            <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="users" class="w-6 h-6"></i>
+            </div>
             <p class="text-slate-400 font-medium italic">No user accounts found in the system.</p>
         </div>
         {% endif %}

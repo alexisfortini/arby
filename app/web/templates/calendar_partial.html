@@ -1,6 +1,31 @@
 <!-- Calendar Grid Partial -->
-<!-- Flexible Grid for Custom Range -->
-<div class="grid w-full gap-1.5 p-1" style="grid-template-columns: repeat({{ calendar_days|length }}, minmax(0, 1fr));">
+<div class="w-full">
+    <!-- Window Navigation Header -->
+    <div class="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50/80 rounded-t-xl mb-2">
+        <div class="flex items-center gap-1.5">
+            <button type="button" onclick="loadMiniCalendar('{{ prev_date }}')"
+                class="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition" title="Previous {{ duration }} days">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <button type="button" onclick="loadMiniCalendar('{{ today_date }}')"
+                class="px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-200 rounded-lg transition border border-slate-200 bg-white">
+                Today
+            </button>
+            <button type="button" onclick="loadMiniCalendar('{{ next_date }}')"
+                class="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition" title="Next {{ duration }} days">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+        </div>
+        <div class="text-xs font-bold text-slate-700 tracking-wide">
+            {{ date_range_label }}
+        </div>
+        <div class="text-[11px] text-slate-400 font-medium">
+            {{ duration }}d Window
+        </div>
+    </div>
+
+    <!-- Flexible Grid for Custom Range -->
+    <div class="grid w-full gap-1.5 p-1" style="grid-template-columns: repeat({{ calendar_days|length }}, minmax(0, 1fr));">
     {% for day in calendar_days %}
     {% set day_config = config.schedule[day.day_name] %}
 
@@ -34,8 +59,10 @@
                 <!-- OFF + FILLED = SAVED MEAL (Normal Appearance) -->
                 <div
                     class="h-full w-full p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
-                    <span class="font-bold block text-slate-400 text-[7px] leading-tight mb-0.5 uppercase">🍳
-                        Breakfast</span>
+                    <span class="font-bold flex items-center gap-1 text-slate-400 text-[7px] leading-tight mb-0.5 uppercase">
+                        <i data-lucide="coffee" class="w-2.5 h-2.5"></i>
+                        <span>Breakfast</span>
+                    </span>
                     <span class="leading-tight truncate block text-[10px] font-medium">{{ day.content.breakfast.name
                         }}</span>
                 </div>
@@ -71,8 +98,10 @@
                 {% else %}
                 <div
                     class="h-full w-full p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
-                    <span class="font-bold block text-slate-400 text-[7px] leading-tight mb-0.5 uppercase">🥗
-                        Lunch</span>
+                    <span class="font-bold flex items-center gap-1 text-slate-400 text-[7px] leading-tight mb-0.5 uppercase">
+                        <i data-lucide="utensils" class="w-2.5 h-2.5"></i>
+                        <span>Lunch</span>
+                    </span>
                     <span class="leading-tight truncate block text-[10px] font-medium">{{ day.content.lunch.name
                         }}</span>
                 </div>
@@ -106,8 +135,10 @@
                 {% else %}
                 <div
                     class="h-full w-full p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-sm border-l-4 border-slate-400 flex flex-col justify-center overflow-hidden transition-all active:scale-95">
-                    <span class="font-bold block text-slate-400 text-[7px] leading-tight mb-0.5 uppercase">🍽️
-                        Dinner</span>
+                    <span class="font-bold flex items-center gap-1 text-slate-400 text-[7px] leading-tight mb-0.5 uppercase">
+                        <i data-lucide="moon" class="w-2.5 h-2.5"></i>
+                        <span>Dinner</span>
+                    </span>
                     <span class="leading-tight truncate block text-[10px] font-medium">{{ day.content.dinner.name
                         }}</span>
                 </div>
@@ -130,3 +161,7 @@
     </div>
     {% endfor %}
 </div>
+</div>
+<script>
+    if (window.lucide) lucide.createIcons();
+</script>

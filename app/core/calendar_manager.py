@@ -1,6 +1,7 @@
 import os
 import json
-from datetime import datetime, timedelta, time as dt_time
+import calendar
+from datetime import datetime, timedelta, date, time as dt_time
 
 class CalendarManager:
     def __init__(self, state_dir):
@@ -52,14 +53,197 @@ class CalendarManager:
             del calendar[date_str]
             self.save_calendar(calendar)
 
-    def clear_until(self, date_str):
-        """Removes all calendar entries on or before the given date string."""
+    def migrate_active_plan_if_needed(self):
+        """
+        Migrates legacy active_plan.json into calendar.json if present,
+        ensuring all existing meals are preserved in the single source of truth.
+        """
+        active_plan_path = os.path.join(self.state_dir, 'active_plan.json')
+        if os.path.exists(active_plan_path):
+            try:
+                with open(active_plan_path, 'r') as f:
+                    plan = json.load(f)
+                calendar = self.load_calendar()
+                changed = False
+                for day in plan.get('days', []):
+                    date_str = day.get('date')
+                    if not date_str:
+                        continue
+                    if date_str not in calendar:
+                        calendar[date_str] = {}
+                    for mt in ['breakfast', 'lunch', 'dinner']:
+                        meal = day.get(mt)
+                        if meal and isinstance(meal, dict) and meal.get('name'):
+                            if mt not in calendar[date_str]:
+                                calendar[date_str][mt] = {
+                                    "name": meal.get('name'),
+                                    "recipe_id": meal.get('recipe_id'),
+                                    "source": meal.get('source', 'chef'),
+                                    "ingredients": meal.get('ingredients', []),
+                                    "instructions": meal.get('instructions', []),
+                                    "image_url": meal.get('image_url'),
+                                    "completed": meal.get('completed', False),
+                                    "rating": meal.get('rating', 0)
+                                }
+                                changed = True
+                if changed:
+                    self.save_calendar(calendar)
+                archived_path = os.path.join(self.state_dir, 'active_plan.json.migrated')
+                if os.path.exists(archived_path):
+                    os.remove(archived_path)
+                os.replace(active_plan_path, archived_path)
+                print(f"Migrated active_plan.json to calendar.json in {self.state_dir}")
+            except Exception as e:
+                print(f"Error migrating active_plan.json: {e}")
+
+    def set_meal(self, date_str, meal_type, meal_data):
+        """
+        Sets or updates an individual meal slot.
+        meal_data can be a dict or string name.
+        """
         calendar = self.load_calendar()
-        dates_to_remove = [d for d in calendar.keys() if d <= date_str]
-        for d in dates_to_remove:
-            del calendar[d]
-        if dates_to_remove:
-            self.save_calendar(calendar)
+        if date_str not in calendar:
+            calendar[date_str] = {}
+        if isinstance(meal_data, str):
+            meal_data = {"name": meal_data, "source": "chef", "completed": False}
+        elif isinstance(meal_data, dict):
+            if "completed" not in meal_data:
+                meal_data["completed"] = False
+        calendar[date_str][meal_type] = meal_data
+        self.save_calendar(calendar)
+        return True
+
+    def swap_meals(self, date1, meal_type1, date2, meal_type2):
+        """Swaps two meal slots between dates/types."""
+        calendar = self.load_calendar()
+        meal1 = calendar.get(date1, {}).get(meal_type1)
+        meal2 = calendar.get(date2, {}).get(meal_type2)
+
+        if date1 not in calendar:
+            calendar[date1] = {}
+        if meal2:
+            calendar[date1][meal_type1] = meal2
+        elif meal_type1 in calendar[date1]:
+            del calendar[date1][meal_type1]
+
+        if date2 not in calendar:
+            calendar[date2] = {}
+        if meal1:
+            calendar[date2][meal_type2] = meal1
+        elif meal_type2 in calendar[date2]:
+            del calendar[date2][meal_type2]
+
+        for d in [date1, date2]:
+            if d in calendar and not calendar[d]:
+                del calendar[d]
+
+        self.save_calendar(calendar)
+        return True
+
+    def mark_meal_completed(self, date_str, meal_type, completed=True):
+        """Marks a meal slot as completed (cooked) and logs to history."""
+        calendar = self.load_calendar()
+        if date_str in calendar and meal_type in calendar[date_str]:
+            meal = calendar[date_str][meal_type]
+            if isinstance(meal, dict):
+                meal['completed'] = completed
+                self.save_calendar(calendar)
+                if completed:
+                    self._log_meal_to_history(date_str, meal_type, meal)
+                return True
+        return False
+
+    def _log_meal_to_history(self, date_str, meal_type, meal):
+        history_path = os.path.join(self.state_dir, 'history.json')
+        history = []
+        if os.path.exists(history_path):
+            try:
+                with open(history_path, 'r') as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        history = data
+            except:
+                history = []
+
+        entry = {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "summary": f"Cooked {meal.get('name', 'Meal')}",
+            "meals": [{
+                "name": meal.get('name'),
+                "rating": meal.get('rating', 0),
+                "source": meal.get('source', 'chef'),
+                "scheduled_date": date_str,
+                "meal_type": meal_type,
+                "recipe_id": meal.get('recipe_id'),
+                "ingredients": meal.get('ingredients', []),
+                "instructions": meal.get('instructions', [])
+            }]
+        }
+        history.append(entry)
+        if len(history) > 100:
+            history = history[-100:]
+        try:
+            with open(history_path, 'w') as f:
+                json.dump(history, f, indent=4)
+        except Exception as e:
+            print(f"Error logging meal to history: {e}")
+
+    def get_upcoming_meals(self, start_date=None, days_ahead=30):
+        """
+        Returns a sorted list of upcoming meals from start_date (default today)
+        up to days_ahead into the future.
+        """
+        self.migrate_active_plan_if_needed()
+        calendar = self.load_calendar()
+        today = datetime.now().date()
+        if not start_date:
+            start_date = today
+        elif isinstance(start_date, str):
+            try:
+                start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+            except:
+                start_date = today
+        elif isinstance(start_date, datetime):
+            start_date = start_date.date()
+
+        end_date = start_date + timedelta(days=days_ahead)
+
+        upcoming = []
+        sorted_dates = sorted(calendar.keys())
+        for d_str in sorted_dates:
+            try:
+                d_obj = datetime.strptime(d_str, "%Y-%m-%d").date()
+            except:
+                continue
+            if d_obj < start_date or d_obj > end_date:
+                continue
+
+            day_data = calendar[d_str]
+            if not isinstance(day_data, dict):
+                continue
+
+            for mt in ['breakfast', 'lunch', 'dinner']:
+                meal = day_data.get(mt)
+                if meal and isinstance(meal, dict) and meal.get('name'):
+                    upcoming.append({
+                        "date": d_str,
+                        "date_obj": d_obj,
+                        "day_name": d_obj.strftime("%A"),
+                        "date_formatted": d_obj.strftime("%a, %b %d"),
+                        "meal_type": mt,
+                        "meal_title": mt.capitalize(),
+                        "name": meal.get('name'),
+                        "recipe_id": meal.get('recipe_id'),
+                        "source": meal.get('source', 'chef'),
+                        "ingredients": meal.get('ingredients', []),
+                        "instructions": meal.get('instructions', []),
+                        "image_url": meal.get('image_url'),
+                        "completed": meal.get('completed', False),
+                        "rating": meal.get('rating', 0),
+                        "is_today": (d_obj == today),
+                        "meal": meal
+                    })
+        return upcoming
 
     def load_config(self):
         if os.path.exists(self.config_file):
@@ -191,6 +375,7 @@ class CalendarManager:
         # Determine Plan Window (Visual only)
         config = self.load_config()
         duration = duration_override if duration_override is not None else config.get('duration_days', 4)
+        schedule_enabled = config.get('schedule_enabled', True)
         
         if not next_run_dt:
             next_run_dt = self.get_next_run_dt()
@@ -200,16 +385,19 @@ class CalendarManager:
         else:
             start_plan = today + timedelta(days=1)
             
-        plan_window_dates = set(
-            (start_plan + timedelta(days=i)).strftime("%Y-%m-%d") 
-            for i in range(duration)
-        )
+        if schedule_enabled and next_run_dt:
+            plan_window_dates = set(
+                (start_plan + timedelta(days=i)).strftime("%Y-%m-%d") 
+                for i in range(duration)
+            )
+        else:
+            plan_window_dates = set()
 
         cal = calendar.Calendar(firstweekday=0)
         dates_to_show = []
 
         if view_mode == 'month':
-            dates_to_show = [ref_date + timedelta(days=i) for i in range(30)]
+            dates_to_show = list(cal.itermonthdates(year, month))
         elif view_mode == 'week':
             dates_to_show = [ref_date + timedelta(days=i) for i in range(7)]
         elif view_mode == 'work_week':
@@ -225,7 +413,7 @@ class CalendarManager:
             # But typically 'planning' implies looking at the upcoming partial horizon.
             dates_to_show = [start_plan + timedelta(days=i) for i in range(duration)]
         else:
-            dates_to_show = [ref_date + timedelta(days=i) for i in range(30)]
+            dates_to_show = list(cal.itermonthdates(year, month))
 
         calendar_days = []
         for date_obj in dates_to_show:
@@ -267,9 +455,84 @@ class CalendarManager:
             
         return calendar_days
 
+    def get_navigation_info(self, ref_date, view_mode, duration=4):
+        """
+        Calculates prev_date, next_date, and formatted date_range_label
+        according to the active view distance:
+        1D (day) -> 1 day
+        3D (3day) -> 3 days
+        5D (work_week) -> 5 days
+        1W (week) -> 7 days
+        1M (month) -> 1 calendar month
+        planning -> duration days
+        """
+        from datetime import date
+        if isinstance(ref_date, datetime):
+            ref_date = ref_date.date()
+        elif isinstance(ref_date, str):
+            try:
+                ref_date = datetime.strptime(ref_date, "%Y-%m-%d").date()
+            except:
+                ref_date = datetime.now().date()
+                
+        today = datetime.now().date()
+        year = ref_date.year
+        month = ref_date.month
+
+        if view_mode == 'day':
+            prev_date = ref_date - timedelta(days=1)
+            next_date = ref_date + timedelta(days=1)
+            date_range_label = ref_date.strftime("%A, %b %d, %Y")
+        elif view_mode == '3day':
+            prev_date = ref_date - timedelta(days=3)
+            next_date = ref_date + timedelta(days=3)
+            end_date = ref_date + timedelta(days=2)
+            date_range_label = f"{ref_date.strftime('%b %d')} – {end_date.strftime('%b %d, %Y')}"
+        elif view_mode == 'work_week':
+            prev_date = ref_date - timedelta(days=5)
+            next_date = ref_date + timedelta(days=5)
+            end_date = ref_date + timedelta(days=4)
+            date_range_label = f"{ref_date.strftime('%b %d')} – {end_date.strftime('%b %d, %Y')}"
+        elif view_mode == 'week':
+            prev_date = ref_date - timedelta(days=7)
+            next_date = ref_date + timedelta(days=7)
+            end_date = ref_date + timedelta(days=6)
+            date_range_label = f"{ref_date.strftime('%b %d')} – {end_date.strftime('%b %d, %Y')}"
+        elif view_mode == 'month':
+            if month == 1:
+                prev_date = date(year - 1, 12, 1)
+            else:
+                prev_date = date(year, month - 1, 1)
+            if month == 12:
+                next_date = date(year + 1, 1, 1)
+            else:
+                next_date = date(year, month + 1, 1)
+            date_range_label = ref_date.strftime("%B %Y")
+        elif view_mode == 'planning':
+            prev_date = ref_date - timedelta(days=duration)
+            next_date = ref_date + timedelta(days=duration)
+            end_date = ref_date + timedelta(days=max(0, duration - 1))
+            date_range_label = f"{ref_date.strftime('%b %d')} – {end_date.strftime('%b %d, %Y')}"
+        else:
+            prev_date = ref_date - timedelta(days=7)
+            next_date = ref_date + timedelta(days=7)
+            date_range_label = ref_date.strftime("%B %Y")
+
+        return {
+            "prev_date": prev_date.strftime("%Y-%m-%d"),
+            "next_date": next_date.strftime("%Y-%m-%d"),
+            "ref_date": ref_date.strftime("%Y-%m-%d"),
+            "date_range_label": date_range_label,
+            "month_name": ref_date.strftime("%B"),
+            "year": year,
+            "today_date": today.strftime("%Y-%m-%d")
+        }
+
     def active_plan_exists(self):
-        """Checks if there is an active plan file."""
-        return os.path.exists(os.path.join(self.state_dir, 'active_plan.json'))
+        """Checks if there are upcoming meals scheduled in calendar.json or legacy active_plan."""
+        if os.path.exists(os.path.join(self.state_dir, 'active_plan.json')):
+            return True
+        return len(self.get_upcoming_meals(date.today(), days_ahead=30)) > 0
 
     def get_default_start_date(self, scheduled_run_dt=None):
         """

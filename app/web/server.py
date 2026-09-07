@@ -2,7 +2,7 @@ import os
 import json
 import sys
 from datetime import datetime, timedelta, date, time as dt_time
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, Response, stream_with_context
 from functools import wraps
 from dotenv import load_dotenv
 import re
@@ -61,7 +61,7 @@ def inject_version():
     except:
         git_hash = "local"
         
-    return dict(app_version="v1.0.16", git_hash=git_hash)
+    return dict(app_version="v1.0.17", git_hash=git_hash)
 
 # --- DYNAMIC AGENT HELPER ---
 def get_agent():
@@ -565,11 +565,12 @@ def update_preferences():
     prefs['history_depth'] = int(request.form.get('history_depth', 50))
     
     # Update Long-term Preferences
-    prefs['long_term_preferences'] = request.form.get('long_term_preferences', '')
+    if 'long_term_preferences' in request.form:
+        prefs['long_term_preferences'] = request.form.get('long_term_preferences', '')
     
     # Update Recipes Ideas
-    ideas = request.form.get('ideas', '')
-    if ideas is not None:
+    if 'ideas' in request.form:
+        ideas = request.form.get('ideas', '')
         with open(agent.ideas_file, 'w') as f:
             f.write(ideas.strip())
             
@@ -963,11 +964,96 @@ def rate_history_meal(index, meal_index, rating):
             
     return redirect('/history')
 
+@app.route('/api/plan/generate_stream', methods=['POST'])
+@login_required
+def api_generate_plan_stream():
+    agent = get_agent()
+    data = request.json or request.form or {}
+    model_id = data.get('model_id')
+    start_date = data.get('start_date')
+    
+    if start_date:
+        try:
+            today = date.today()
+            sd_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
+            if sd_obj < today:
+                start_date = today.strftime("%Y-%m-%d")
+        except:
+            pass
+            
+    duration = data.get('duration')
+    if duration:
+        try:
+            duration = min(max(1, int(duration)), 7)
+        except:
+            duration = 4
+    else:
+        duration = 4
+        
+    chef_user_ratio = data.get('chef_user_ratio', 50)
+    try:
+        chef_user_ratio = int(chef_user_ratio)
+    except:
+        chef_user_ratio = 50
+
+    try:
+        pref_path = agent.pref_file
+        prefs = {}
+        if os.path.exists(pref_path):
+            with open(pref_path, 'r') as f:
+                prefs = json.load(f)
+        if model_id:
+            prefs['preferred_model'] = model_id
+        prefs['chef_user_ratio'] = chef_user_ratio
+        prefs['data_context'] = {
+            "use_inventory": True if data.get('use_inventory') in [True, 'true', 'on', '1'] else False,
+            "use_history": True if data.get('use_history') in [True, 'true', 'on', '1'] else False,
+            "use_ideas": True,
+            "use_cookbook": True if data.get('use_cookbook') in [True, 'true', 'on', '1', None] else False,
+        }
+        if data.get('long_term_preferences'):
+            prefs['long_term_preferences'] = data.get('long_term_preferences')
+        with open(pref_path, 'w') as f:
+            json.dump(prefs, f, indent=4)
+            
+        modal_ideas = data.get('ideas')
+        if modal_ideas is not None and hasattr(agent, 'ideas_file'):
+            try:
+                with open(agent.ideas_file, 'w') as f:
+                    f.write(str(modal_ideas).strip())
+            except Exception as ie:
+                print(f"Failed to write ideas file: {ie}")
+    except Exception as e:
+        print(f"Error saving preferences in stream: {e}")
+
+    def generate_events():
+        try:
+            for event in agent.stream_plan_slots(
+                model_id=model_id,
+                start_date=start_date,
+                duration=duration,
+                chef_user_ratio=chef_user_ratio,
+                ideas_override=data.get('ideas')
+            ):
+                yield f"data: {json.dumps(event)}\n\n"
+        except Exception as err:
+            err_data = {"status": "error", "message": str(err), "step": 4, "progress": 75}
+            yield f"data: {json.dumps(err_data)}\n\n"
+
+    return Response(
+        stream_with_context(generate_events()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive'
+        }
+    )
+
 @app.route('/generate', methods=['POST'])
 @login_required
 def generate_plan():
     agent = get_agent()
-    """Generates a DRAFT plan and redirects to review page."""
     model_id = request.form.get('model_id')
     start_date = request.form.get('start_date')
     
@@ -982,8 +1068,6 @@ def generate_plan():
             pass
             
     duration = request.form.get('duration')
-    
-    # Enforce 7-day limit
     if duration:
         try:
             duration = min(int(duration), 7)
@@ -991,7 +1075,13 @@ def generate_plan():
             duration = 4
     else:
         duration = 4
-    
+        
+    chef_user_ratio = request.form.get('chef_user_ratio', 50)
+    try:
+        chef_user_ratio = int(chef_user_ratio)
+    except:
+        chef_user_ratio = 50
+
     # Persist Preference & Context Overrides
     try:
         pref_path = agent.pref_file
@@ -1000,11 +1090,10 @@ def generate_plan():
             with open(pref_path, 'r') as f:
                 prefs = json.load(f)
         
-        # Update Model Preference
         if model_id:
             prefs['preferred_model'] = model_id
+        prefs['chef_user_ratio'] = chef_user_ratio
         
-        # Update Data Context from modal overrides
         prefs['data_context'] = {
             "use_inventory": 'use_inventory' in request.form,
             "use_history": 'use_history' in request.form,
@@ -1012,17 +1101,14 @@ def generate_plan():
             "use_cookbook": 'use_cookbook' in request.form,
         }
         
-        # Update History Depth
         history_depth = request.form.get('history_depth')
         if history_depth:
             prefs['history_depth'] = int(history_depth)
         
-        # Update Long-term Preferences
         ltp = request.form.get('long_term_preferences')
         if ltp is not None:
             prefs['long_term_preferences'] = ltp
         
-        # Update Recipe Ideas from modal
         modal_ideas = request.form.get('ideas')
         if modal_ideas is not None:
              with open(agent.ideas_file, 'w') as f:
@@ -1034,269 +1120,154 @@ def generate_plan():
         print(f"Failed to save context: {e}")
 
     try:
-        draft = agent.generate_draft(model_id=model_id, start_date=start_date, duration=duration)
-        if "error" in draft:
-            flash(f"Error: {draft['error']}", "error")
-            return redirect('/')
+        result = agent.plan_slots(
+            model_id=model_id,
+            start_date=start_date,
+            duration=duration,
+            chef_user_ratio=chef_user_ratio
+        )
+        if isinstance(result, dict) and "error" in result:
+            flash(f"Error: {result['error']}", "error")
+            return redirect('/calendar')
             
-        # Save Draft to State
-        draft_path = os.path.join(agent.user_state_dir, 'current_draft.json')
-        with open(draft_path, 'w') as f:
-            json.dump(draft, f, indent=4)
-            
-        return redirect('/plan/review')
+        flash(f"Planned meals for {duration} days!", "success")
+        return redirect('/plan/view')
     except Exception as e:
         print(f"Error generating: {e}")
         flash(f"Error generating plan: {str(e)}", "error")
-        return redirect('/')
+        return redirect('/calendar')
 
 @app.route('/plan/review')
 @login_required
 def review_plan_page():
-    agent = get_agent()
-    draft_path = os.path.join(agent.user_state_dir, 'current_draft.json')
-    if not os.path.exists(draft_path):
-        flash("No draft plan found. Please generate one first.", "warning")
-        return redirect('/')
-        
-    with open(draft_path, 'r') as f:
-        draft = json.load(f)
-        
-    return render_template('review_plan.html', plan=draft, user=current_user)
+    return redirect('/plan/view')
 
 @app.route('/plan/modify', methods=['POST'])
 @login_required
 def modify_plan():
-    agent = get_agent()
-    user_feedback = request.form.get('feedback')
-    model_id = request.form.get('model_id') # Optional override
-    
-    draft_path = os.path.join(agent.user_state_dir, 'current_draft.json')
-    if not os.path.exists(draft_path):
-        flash("No draft found to modify.", "error")
-        return redirect('/')
-        
-    with open(draft_path, 'r') as f:
-        current_draft = json.load(f)
-        
-    if not user_feedback:
-        flash("Please provide feedback.", "warning")
-        return redirect('/plan/review')
-        
-    # Resolve Model ID based on Chef selection
-    chef_type = request.form.get('chef', 'main')
-    if chef_type == 'sous':
-        model_id = agent.model_manager.get_sous_chef_model_id()
-    else:
-        model_id = agent.model_manager.get_core_model_id()
-
-    # Execute Modification
-    new_draft = agent.modify_plan(current_draft, user_feedback, model_id=model_id)
-    
-    if "error" in new_draft:
-        flash(f"Modification failed: {new_draft['error']}", "error")
-        return redirect('/plan/review')
-        
-    # Save New Draft
-    with open(draft_path, 'w') as f:
-        json.dump(new_draft, f, indent=4)
-        
-    flash("Plan updated based on your feedback!", "success")
-    return redirect('/plan/review')
+    return redirect('/plan/view')
 
 @app.route('/plan/active/modify', methods=['POST'])
 @login_required
 def modify_active_plan():
-    agent = get_agent()
-    user_feedback = request.form.get('feedback')
-    
-    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
-    if not os.path.exists(active_path):
-        flash("No active plan found to modify.", "error")
-        return redirect('/')
-        
-    with open(active_path, 'r') as f:
-        current_plan = json.load(f)
-        
-    if not user_feedback:
-        flash("Please provide feedback.", "warning")
-        return redirect('/plan/view')
-        
-    # Resolve Model ID based on Chef selection
-    chef_type = request.form.get('chef', 'main')
-    if chef_type == 'sous':
-        model_id = agent.model_manager.get_sous_chef_model_id()
-    else:
-        model_id = agent.model_manager.get_core_model_id()
-
-    # Execute Modification
-    # We pass the current plan. The agent will return a NEW plan structure.
-    new_plan = agent.modify_plan(current_plan, user_feedback, model_id=model_id)
-    
-    if "error" in new_plan:
-        flash(f"Modification failed: {new_plan['error']}", "error")
-        return redirect('/plan/view')
-    
-    # Preserve existing state
-    if 'checked_groceries' in current_plan:
-        new_plan['checked_groceries'] = current_plan['checked_groceries']
-    if 'completed_meals' in current_plan:
-        new_plan['completed_meals'] = current_plan['completed_meals']
-        
-    # We might want to re-run pantry recommendations since ingredients changed
-    try:
-        recommendations = agent.recommend_grocery_checks(new_plan)
-        new_plan['pantry_recommendations'] = recommendations
-    except:
-        pass
-        
-    # Save New Active Plan
-    with open(active_path, 'w') as f:
-        json.dump(new_plan, f, indent=4)
-        
-    # UPDATE CALENDAR (Sync)
-    try:
-        calendar_update = {}
-        existing_calendar = agent.calendar_manager.load_calendar()
-        
-        for day in new_plan['days']:
-            date_str = day['date']
-            day_state = existing_calendar.get(date_str, {}).copy()
-            if day.get('breakfast'): day_state['breakfast'] = day['breakfast']['name']
-            if day.get('lunch'): day_state['lunch'] = day['lunch']['name']
-            if day.get('dinner'): day_state['dinner'] = day['dinner']['name']
-            calendar_update[date_str] = day_state
-            
-        agent.calendar_manager.update_calendar(calendar_update)
-    except Exception as e:
-        print(f"Failed to sync calendar after modify: {e}")
-
-    flash("Active plan updated!", "success")
     return redirect('/plan/view')
 
 @app.route('/plan/confirm', methods=['POST'])
 @login_required
 def confirm_plan():
-    agent = get_agent()
-    draft_path = os.path.join(agent.user_state_dir, 'current_draft.json')
-    if not os.path.exists(draft_path):
-        return redirect('/')
-        
-    with open(draft_path, 'r') as f:
-        draft = json.load(f)
-    
-    # Finalize
-    agent.finalize_plan(draft)
-    
-    # Auto-run Pantry Check
-    try:
-        recommendations = agent.recommend_grocery_checks(draft)
-        draft['pantry_recommendations'] = recommendations
-    except Exception as e:
-        print(f"Auto-pantry check failed: {e}")
-    
-    # Move to Active Plan
-    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
-    with open(active_path, 'w') as f:
-        json.dump(draft, f, indent=4)
-        
-    # Remove Draft
-    os.remove(draft_path)
-    
-    # Clear Ideas/Cravings
-    if os.path.exists(agent.ideas_file):
-        with open(agent.ideas_file, 'w') as f:
-            f.write("")
-    
-    flash("Plan confirmed! Calendar updated and email sent.", "success")
     return redirect('/plan/view')
 
 @app.route('/plan/view')
 @login_required
 def view_active_plan():
     agent = get_agent()
-    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
-    if not os.path.exists(active_path):
-         flash("No active detailed plan found.", "info")
-         return redirect('/')
-         
-    with open(active_path, 'r') as f:
-        plan = json.load(f)
-        
-    # Enrich plan with current cookbook ratings
+    today = date.today()
+    upcoming_meals = agent.calendar_manager.get_upcoming_meals(today, days_ahead=30)
+    
+    # Enrich meals with cookbook ratings/image if available
     recipes = agent.cookbook_manager.load_recipes()
-    recipe_map = {r['name'].lower(): r for r in recipes}
+    recipe_map = {r['name'].lower().strip(): r for r in recipes}
     
-    for day in plan.get('days', []):
-        for mt in ['breakfast', 'lunch', 'dinner']:
-            meal = day.get(mt)
-            if meal and meal.get('name'):
-                match = recipe_map.get(meal['name'].lower())
-                if match:
-                    meal['recipe_id'] = match['id']
-                    # Keep plan rating if already set, else use library rating
-                    if 'rating' not in meal:
-                        meal['rating'] = match.get('rating', 0)
-    
-    return render_template('view_plan.html', plan=plan, title="Meal Plan", user=current_user)
+    for item in upcoming_meals:
+        match = recipe_map.get(item['name'].lower().strip())
+        if match:
+            if not item.get('recipe_id'):
+                item['recipe_id'] = match['id']
+            if not item.get('image_url') and match.get('image_url'):
+                item['image_url'] = match.get('image_url')
+            if not item.get('rating') and match.get('rating'):
+                item['rating'] = match.get('rating')
+
+    recipes = agent.cookbook_manager.load_recipes()
+    return render_template('view_plan.html', upcoming_meals=upcoming_meals, recipes=recipes, title="Upcoming Meals", user=current_user)
 
 @app.route('/plan/grocery')
 @login_required
 def grocery_plan_page():
     agent = get_agent()
-    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
-    if not os.path.exists(active_path):
-          flash("No active detailed plan found.", "info")
-          return redirect('/')
-          
-    with open(active_path, 'r') as f:
-        plan = json.load(f)
-        
-    return render_template('grocery_list.html', plan=plan, title="Grocery List", user=current_user)
+    today = date.today()
+    upcoming_meals = agent.calendar_manager.get_upcoming_meals(today, days_ahead=14)
+    active_meals = [m for m in upcoming_meals if not m.get('completed')]
+    
+    checked_set = set(session.get('checked_groceries', []))
+    grocery_by_meal = []
+    flattened_groceries = []
+    
+    for m in active_meals:
+        meal_groceries = []
+        for idx, ing in enumerate(m.get('ingredients', [])):
+            item_id = f"{m['date']}-{m['meal_type']}-{idx}"
+            is_checked = item_id in checked_set
+            g_item = {
+                "id": item_id,
+                "name": ing,
+                "checked": is_checked,
+                "meal_name": m['name'],
+                "date": m['date'],
+                "meal_type": m['meal_type']
+            }
+            meal_groceries.append(g_item)
+            flattened_groceries.append(g_item)
+        if meal_groceries:
+            grocery_by_meal.append({
+                "date": m['date'],
+                "day_name": m['day_name'],
+                "meal_type": m['meal_type'],
+                "meal_name": m['name'],
+                "items": meal_groceries
+            })
+            
+    custom_groceries = agent.load_custom_groceries()
+    for c in custom_groceries:
+        if c.get('id') in checked_set:
+            c['checked'] = True
+            
+    return render_template(
+        'grocery_list.html',
+        grocery_by_meal=grocery_by_meal,
+        flattened_groceries=flattened_groceries,
+        custom_groceries=custom_groceries,
+        title="Grocery List",
+        user=current_user
+    )
 
 @app.route('/plan/cook')
 @login_required
 def cook_plan_page():
     agent = get_agent()
-    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
-    if not os.path.exists(active_path):
-          flash("No active detailed plan found.", "info")
-          return redirect('/')
-          
-    with open(active_path, 'r') as f:
-        plan = json.load(f)
+    today = date.today()
+    upcoming_meals = agent.calendar_manager.get_upcoming_meals(today, days_ahead=14)
     
-    return render_template('cooking_mode.html', plan=plan, title="Live Cooking", user=current_user)
+    recipes = agent.cookbook_manager.load_recipes()
+    recipe_map = {r['name'].lower().strip(): r for r in recipes}
+    for item in upcoming_meals:
+        match = recipe_map.get(item['name'].lower().strip())
+        if match:
+            if not item.get('recipe_id'):
+                item['recipe_id'] = match['id']
+            if not item.get('image_url') and match.get('image_url'):
+                item['image_url'] = match.get('image_url')
+
+    return render_template('cooking_mode.html', upcoming_meals=upcoming_meals, title="Live Cooking", user=current_user)
 
 @app.route('/api/plan/grocery/toggle_meal', methods=['POST'])
 @login_required
 def toggle_grocery_meal_item():
-    agent = get_agent()
-    data = request.json
-    item_id = data.get('item_id') # format: date-meal-index
-    
-    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
-    if not os.path.exists(active_path):
-        return jsonify({"status": "error", "message": "No active plan"}), 404
+    data = request.json or {}
+    item_id = data.get('item_id') or data.get('id')
+    if not item_id:
+        return jsonify({"status": "error", "message": "Missing item_id"}), 400
         
-    try:
-        with open(active_path, 'r') as f:
-            plan = json.load(f)
-            
-        # Use a dict for checked groceries: { "item_id": True/False }
-        if 'checked_groceries' not in plan:
-            plan['checked_groceries'] = {}
-            
-        current_state = plan['checked_groceries'].get(item_id, False)
-        new_state = not current_state
-        plan['checked_groceries'][item_id] = new_state
-            
-        with open(active_path, 'w') as f:
-            json.dump(plan, f, indent=4)
-            
-        return jsonify({"status": "ok", "checked": new_state})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    checked_list = session.get('checked_groceries', [])
+    if item_id in checked_list:
+        checked_list.remove(item_id)
+        is_checked = False
+    else:
+        checked_list.append(item_id)
+        is_checked = True
+    session['checked_groceries'] = checked_list
+    session.modified = True
+    return jsonify({"status": "ok", "checked": is_checked})
 
 @app.route('/api/plan/cook/toggle_ingredient', methods=['POST'])
 @login_required
@@ -1330,60 +1301,177 @@ def toggle_cooking_ingredient():
 @app.route('/api/plan/cook/toggle_step', methods=['POST'])
 @login_required
 def toggle_cooking_step():
-    agent = get_agent()
-    data = request.json
-    step_id = data.get('step_id') # format: date-meal-stepindex
-    
-    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
-    if not os.path.exists(active_path):
-        return jsonify({"status": "error", "message": "No active plan"}), 404
-        
-    try:
-        with open(active_path, 'r') as f:
-            plan = json.load(f)
-            
-        if 'completed_cooking_steps' not in plan:
-            plan['completed_cooking_steps'] = {}
-            
-        current_state = plan['completed_cooking_steps'].get(step_id, False)
-        new_state = not current_state
-        plan['completed_cooking_steps'][step_id] = new_state
-            
-        with open(active_path, 'w') as f:
-            json.dump(plan, f, indent=4)
-            
-        return jsonify({"status": "ok", "completed": new_state})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    data = request.json or {}
+    step_id = data.get('step_id')
+    checked_steps = session.get('checked_cooking_steps', [])
+    if step_id in checked_steps:
+        checked_steps.remove(step_id)
+        new_state = False
+    else:
+        checked_steps.append(step_id)
+        new_state = True
+    session['checked_cooking_steps'] = checked_steps
+    session.modified = True
+    return jsonify({"status": "ok", "completed": new_state})
 
 @app.route('/api/plan/cook/toggle_meal', methods=['POST'])
 @login_required
 def toggle_cooking_meal():
     agent = get_agent()
-    data = request.json
-    meal_id = data.get('meal_id') # format: date-mealtype
-    
-    active_path = os.path.join(agent.user_state_dir, 'active_plan.json')
-    if not os.path.exists(active_path):
-        return jsonify({"status": "error", "message": "No active plan"}), 404
+    data = request.json or {}
+    date_str = data.get('date')
+    meal_type = data.get('meal_type')
+    meal_id = data.get('meal_id')
+    if not date_str and meal_id and '-' in meal_id:
+        parts = meal_id.rsplit('-', 1)
+        date_str, meal_type = parts[0], parts[1]
+    completed = data.get('completed', True)
+    if not date_str or not meal_type:
+        return jsonify({"status": "error", "message": "Missing date or meal_type"}), 400
+    agent.calendar_manager.mark_meal_completed(date_str, meal_type, completed=completed)
+    return jsonify({"status": "ok", "completed": completed})
+
+@app.route('/api/calendar/meal/set', methods=['POST'])
+@login_required
+def api_set_calendar_meal():
+    agent = get_agent()
+    data = request.json or {}
+    date_str = data.get('date')
+    meal_type = data.get('meal_type')
+    meal_data = data.get('meal_data')
+    if not date_str or not meal_type or not meal_data:
+        return jsonify({"status": "error", "message": "Missing date, meal_type, or meal_data"}), 400
+    agent.calendar_manager.set_meal(date_str, meal_type, meal_data)
+    return jsonify({"status": "ok"})
+
+@app.route('/api/calendar/meal/delete', methods=['POST'])
+@login_required
+def api_delete_calendar_meal():
+    agent = get_agent()
+    data = request.json or {}
+    date_str = data.get('date')
+    meal_type = data.get('meal_type')
+    if not date_str or not meal_type:
+        return jsonify({"status": "error", "message": "Missing date or meal_type"}), 400
+    agent.calendar_manager.remove_meal(date_str, meal_type)
+    return jsonify({"status": "ok"})
+
+@app.route('/api/calendar/meal/swap', methods=['POST'])
+@login_required
+def api_swap_calendar_meals():
+    agent = get_agent()
+    data = request.json or {}
+    d1 = data.get('date1')
+    m1 = data.get('meal1')
+    d2 = data.get('date2')
+    m2 = data.get('meal2')
+    if not (d1 and m1 and d2 and m2):
+        return jsonify({"status": "error", "message": "Missing swap coordinates"}), 400
+    agent.calendar_manager.swap_meals(d1, m1, d2, m2)
+    return jsonify({"status": "ok"})
+
+@app.route('/api/calendar/meal/complete', methods=['POST'])
+@login_required
+def api_complete_calendar_meal():
+    agent = get_agent()
+    data = request.json or {}
+    date_str = data.get('date')
+    meal_type = data.get('meal_type')
+    completed = data.get('completed', True)
+    if not date_str or not meal_type:
+        return jsonify({"status": "error", "message": "Missing date or meal_type"}), 400
+    agent.calendar_manager.mark_meal_completed(date_str, meal_type, completed=completed)
+    return jsonify({"status": "ok", "completed": completed})
+
+@app.route('/api/grocery/check_all', methods=['POST'])
+@login_required
+def api_grocery_check_all():
+    agent = get_agent()
+    upcoming = agent.calendar_manager.get_upcoming_meals(date.today(), days_ahead=14)
+    all_ids = []
+    for m in upcoming:
+        if not m.get('completed'):
+            for idx in range(len(m.get('ingredients', []))):
+                all_ids.append(f"{m['date']}-{m['meal_type']}-{idx}")
+    custom_groceries = agent.load_custom_groceries()
+    for c in custom_groceries:
+        c['checked'] = True
+        all_ids.append(c['id'])
+    agent.save_custom_groceries(custom_groceries)
+    session['checked_groceries'] = list(set(all_ids))
+    session.modified = True
+    return jsonify({"status": "ok", "checked_count": len(all_ids)})
+
+@app.route('/api/grocery/uncheck_all', methods=['POST'])
+@login_required
+def api_grocery_uncheck_all():
+    agent = get_agent()
+    custom_groceries = agent.load_custom_groceries()
+    for c in custom_groceries:
+        c['checked'] = False
+    agent.save_custom_groceries(custom_groceries)
+    session['checked_groceries'] = []
+    session.modified = True
+    return jsonify({"status": "ok"})
+
+@app.route('/api/grocery/toggle_item', methods=['POST'])
+@login_required
+def api_grocery_toggle_item():
+    agent = get_agent()
+    data = request.json or {}
+    item_id = data.get('id')
+    if not item_id:
+        return jsonify({"status": "error", "message": "Missing item id"}), 400
         
-    try:
-        with open(active_path, 'r') as f:
-            plan = json.load(f)
-            
-        if 'completed_meals' not in plan:
-            plan['completed_meals'] = {}
-            
-        current_state = plan['completed_meals'].get(meal_id, False)
-        new_state = not current_state
-        plan['completed_meals'][meal_id] = new_state
-            
-        with open(active_path, 'w') as f:
-            json.dump(plan, f, indent=4)
-            
-        return jsonify({"status": "ok", "completed": new_state})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    checked_list = session.get('checked_groceries', [])
+    if item_id in checked_list:
+        checked_list.remove(item_id)
+        is_checked = False
+    else:
+        checked_list.append(item_id)
+        is_checked = True
+    session['checked_groceries'] = checked_list
+    session.modified = True
+    
+    if item_id.startswith('custom-'):
+        custom_groceries = agent.load_custom_groceries()
+        for c in custom_groceries:
+            if c.get('id') == item_id:
+                c['checked'] = is_checked
+        agent.save_custom_groceries(custom_groceries)
+        
+    return jsonify({"status": "ok", "checked": is_checked})
+
+@app.route('/api/grocery/add_item', methods=['POST'])
+@login_required
+def api_grocery_add_item():
+    agent = get_agent()
+    data = request.json or {}
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({"status": "error", "message": "Item name is required"}), 400
+    added = agent.add_custom_groceries([name])
+    return jsonify({"status": "ok", "items": added})
+
+@app.route('/api/grocery/delete_custom/<item_id>', methods=['POST'])
+@login_required
+def api_grocery_delete_custom(item_id):
+    agent = get_agent()
+    custom = agent.load_custom_groceries()
+    updated = [c for c in custom if c.get('id') != item_id]
+    agent.save_custom_groceries(updated)
+    return jsonify({"status": "ok"})
+
+@app.route('/api/agent/chat', methods=['POST'])
+@login_required
+def api_agent_chat():
+    agent = get_agent()
+    data = request.json or {}
+    message = data.get('message', '').strip()
+    if not message:
+        return jsonify({"status": "error", "reply": "Please send a message."}), 400
+    res = agent.execute_assistant_command(message)
+    return jsonify(res)
 
 @app.route('/api/plan/grocery/pantry_check', methods=['POST'])
 @login_required
@@ -1525,7 +1613,27 @@ def remove_ingredient_from_cooking():
 @app.route('/ideas')
 @login_required
 def ideas_page():
-    return render_template('ideas.html', user=current_user)
+    agent = get_agent()
+    current_ideas = ""
+    if os.path.exists(agent.ideas_file):
+        with open(agent.ideas_file, 'r') as f:
+            current_ideas = f.read().strip()
+            
+    long_term_preferences = ""
+    if os.path.exists(agent.pref_file):
+        try:
+            with open(agent.pref_file, 'r') as f:
+                prefs = json.load(f)
+                long_term_preferences = prefs.get('long_term_preferences', '')
+        except:
+            pass
+            
+    return render_template(
+        'ideas.html',
+        current_ideas=current_ideas,
+        long_term_preferences=long_term_preferences,
+        user=current_user
+    )
 
 @app.route('/library')
 @login_required
@@ -1647,19 +1755,39 @@ def serve_recipe_pdf(filename):
     agent = get_agent()
     return send_from_directory(agent.cookbook_manager.library_path, filename)
 
+@app.route('/media/recipe_images/<path:filename>')
+@login_required
+def serve_recipe_image(filename):
+    agent = get_agent()
+    images_dir = os.path.join(agent.user_state_dir, 'recipe_images')
+    os.makedirs(images_dir, exist_ok=True)
+    return send_from_directory(images_dir, filename)
+
 @app.route('/library/add', methods=['GET', 'POST'])
 @login_required
 def add_recipe():
     agent = get_agent()
     from app.core.cookbook_manager import CATEGORIES, PROTEINS
     if request.method == 'POST':
+        image_url = request.form.get('image_url', '').strip() or None
+        file = request.files.get('image_file')
+        if file and file.filename:
+            ext = os.path.splitext(file.filename)[1].lower()
+            if ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
+                img_dir = os.path.join(agent.user_state_dir, 'recipe_images')
+                os.makedirs(img_dir, exist_ok=True)
+                unique_name = f"{uuid.uuid4().hex[:12]}{ext}"
+                file.save(os.path.join(img_dir, unique_name))
+                image_url = f"/media/recipe_images/{unique_name}"
+                
         recipe_data = {
             "name": request.form.get('name'),
             "category": request.form.get('category'),
             "protein": request.form.get('protein'),
-            "ingredients": request.form.get('ingredients').split('\n'),
-            "instructions": request.form.get('instructions').split('\n'),
-            "source": request.form.get('source', 'user')
+            "ingredients": [line.strip() for line in request.form.get('ingredients', '').split('\n') if line.strip()],
+            "instructions": [line.strip() for line in request.form.get('instructions', '').split('\n') if line.strip()],
+            "source": request.form.get('source', 'user'),
+            "image_url": image_url
         }
         agent.cookbook_manager.add_recipe(recipe_data)
         flash("Recipe added!", "success")
@@ -1676,14 +1804,27 @@ def edit_recipe(recipe_id):
         return redirect('/library')
 
     if request.method == 'POST':
+        image_url = request.form.get('image_url', '').strip() or None
+        file = request.files.get('image_file')
+        if file and file.filename:
+            ext = os.path.splitext(file.filename)[1].lower()
+            if ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
+                img_dir = os.path.join(agent.user_state_dir, 'recipe_images')
+                os.makedirs(img_dir, exist_ok=True)
+                unique_name = f"{uuid.uuid4().hex[:12]}{ext}"
+                file.save(os.path.join(img_dir, unique_name))
+                image_url = f"/media/recipe_images/{unique_name}"
+
         updates = {
             "name": request.form.get('name'),
             "category": request.form.get('category'),
             "protein": request.form.get('protein'),
-            "ingredients": request.form.get('ingredients').split('\n'),
-            "instructions": request.form.get('instructions').split('\n'),
+            "ingredients": [line.strip() for line in request.form.get('ingredients', '').split('\n') if line.strip()],
+            "instructions": [line.strip() for line in request.form.get('instructions', '').split('\n') if line.strip()],
             "source": request.form.get('source')
         }
+        if image_url:
+            updates["image_url"] = image_url
         agent.cookbook_manager.update_recipe(recipe_id, updates)
         flash("Recipe updated!", "success")
         return redirect('/library')
@@ -2032,6 +2173,17 @@ def test_all_models_endpoint():
         print(f"DEBUG: Error in test_all_models_endpoint: {e}")
         return jsonify({"status": "error", "msg": str(e)}), 500
 
+@app.route('/api/models/refresh', methods=['POST'])
+@login_required
+def refresh_models_endpoint():
+    agent = get_agent()
+    try:
+        res = agent.model_manager.discover_and_refresh_models()
+        return jsonify({"status": "ok", "discovered": res["discovered"], "tested": res["tested"], "results": res["results"]})
+    except Exception as e:
+        print(f"DEBUG: Error in refresh_models_endpoint: {e}")
+        return jsonify({"status": "error", "msg": str(e)}), 500
+
 @app.route('/settings/core_model', methods=['POST'])
 @login_required
 def update_core_model():
@@ -2067,21 +2219,13 @@ def update_librarian_model():
 def calendar_widget():
     """
     Returns a partial HTML for the calendar widget.
-    Accepts 'date' (default: today), 'duration' (default: 4 or from config), and 'view' (default: custom range).
+    Supports shift='prev'|'next'|'today' to page forward/backward by duration.
     """
     agent = get_agent()
     ref_date_str = request.args.get('date')
     duration_str = request.args.get('duration')
+    shift = request.args.get('shift')
     
-    if ref_date_str:
-        try:
-            ref_date = datetime.strptime(ref_date_str, '%Y-%m-%d').date()
-        except:
-            ref_date = date.today()
-    else:
-        ref_date = date.today()
-
-    # Determine duration
     cal_manager = agent.calendar_manager
     config = cal_manager.load_config()
     
@@ -2093,16 +2237,30 @@ def calendar_widget():
     else:
         duration = min(config.get('duration_days', 4), 7)
 
-    events = cal_manager.load_calendar()
-    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    
-    # Calculate visual plan window
-    # Calculate a mock next_run_dt using the ref_date passed by the widget
-    # This ensures the green highlight starts exactly on the selected date in the modal
+    today = date.today()
+    if shift == 'today':
+        ref_date = today
+    elif ref_date_str:
+        try:
+            ref_date = datetime.strptime(ref_date_str, '%Y-%m-%d').date()
+        except:
+            ref_date = today
+    else:
+        ref_date = today
+        
+    if shift == 'next':
+        ref_date = ref_date + timedelta(days=duration)
+    elif shift == 'prev':
+        ref_date = ref_date - timedelta(days=duration)
+        
+    prev_date = (ref_date - timedelta(days=duration)).strftime("%Y-%m-%d")
+    next_date = (ref_date + timedelta(days=duration)).strftime("%Y-%m-%d")
+    end_date = ref_date + timedelta(days=max(0, duration - 1))
+    date_range_label = f"{ref_date.strftime('%b %d')} – {end_date.strftime('%b %d, %Y')}"
+
     h, m = map(int, config.get('run_time', '10:00').split(':'))
     mock_run_dt = datetime.combine(ref_date, dt_time(h, m))
 
-    # Use standard manager logic with our new 'planning' mode
     calendar_days = agent.calendar_manager.get_days_for_view(
         ref_date=ref_date, 
         view_mode='planning',
@@ -2114,7 +2272,12 @@ def calendar_widget():
         'calendar_partial.html',
         calendar_days=calendar_days,
         view_mode='planning',
-        ref_date=ref_date,
+        ref_date=ref_date.strftime("%Y-%m-%d"),
+        prev_date=prev_date,
+        next_date=next_date,
+        today_date=today.strftime("%Y-%m-%d"),
+        date_range_label=date_range_label,
+        duration=duration,
         config=config,
         user=current_user
     )
@@ -2149,50 +2312,23 @@ def calendar_page():
     else:
         ref_date = today
 
-    year = ref_date.year
-    month = ref_date.month
-    
     # --- VIEW MODE LOGIC ---
     view_mode = request.args.get('view', 'work_week')
+    duration = config.get('duration_days', 4)
+
+    # Calculate exact distance deltas and range headers
+    nav_info = agent.calendar_manager.get_navigation_info(ref_date, view_mode, duration=duration)
+    prev_date = nav_info['prev_date']
+    next_date = nav_info['next_date']
+    date_range_label = nav_info['date_range_label']
+    month_name = nav_info['month_name']
+    year = nav_info['year']
 
     # Get Next Run for Planning Window
     next_run = agent.calendar_manager.get_next_run_dt()
     
     # Get Data from Manager
     calendar_days = agent.calendar_manager.get_days_for_view(ref_date, view_mode, next_run_dt=next_run)
-    
-    # Navigation Deltas
-    if view_mode == 'month':
-        next_date = ref_date + timedelta(days=30)
-        prev_date = ref_date - timedelta(days=30)
-            
-    elif view_mode == 'week':
-        next_date = ref_date + timedelta(days=7)
-        prev_date = ref_date - timedelta(days=7)
-
-    elif view_mode == 'work_week':
-        next_date = ref_date + timedelta(days=5)
-        prev_date = ref_date - timedelta(days=5)
-        
-    elif view_mode == '3day':
-        next_date = ref_date + timedelta(days=3)
-        prev_date = ref_date - timedelta(days=3)
-        
-    elif view_mode == 'planning':
-        duration = config.get('duration_days', 4)
-        next_date = ref_date + timedelta(days=duration)
-        prev_date = ref_date - timedelta(days=duration)
-        
-    elif view_mode == 'day':
-        next_date = ref_date + timedelta(days=1)
-        prev_date = ref_date - timedelta(days=1)
-        
-    else:
-        next_date = ref_date + timedelta(days=30)
-        prev_date = ref_date - timedelta(days=30)
-        
-    # Formatting for Display
-    month_name = ref_date.strftime("%B")
     
     # Default Start Date for Generating
     default_start = agent.calendar_manager.get_default_start_date()
@@ -2223,7 +2359,6 @@ def calendar_page():
         with open(pref_path, 'r') as f:
             prefs = json.load(f)
 
-    # Defaults to prevent Jinja errors
     if 'data_context' not in prefs:
         prefs['data_context'] = {
             "use_inventory": True,
@@ -2232,7 +2367,6 @@ def calendar_page():
             "use_cookbook": True
         }
 
-    # Recipe Ideas for modal
     current_ideas = ""
     if os.path.exists(agent.ideas_file):
         with open(agent.ideas_file, 'r') as f:
@@ -2240,11 +2374,12 @@ def calendar_page():
 
     return render_template('calendar.html', 
                            month_name=month_name,
-                           month=month, 
+                           month=ref_date.month, 
                            year=year, 
                            ref_date=ref_date.strftime("%Y-%m-%d"),
-                           next_date=next_date.strftime("%Y-%m-%d"),
-                           prev_date=prev_date.strftime("%Y-%m-%d"),
+                           next_date=next_date,
+                           prev_date=prev_date,
+                           date_range_label=date_range_label,
                            today_date=today.strftime("%Y-%m-%d"),
                            calendar_days=calendar_days,
                            config=config,
@@ -2254,6 +2389,8 @@ def calendar_page():
                            run_day=config.get('run_day', 'Sunday'),
                            run_time=config.get('run_time', '10:00'),
                            duration_days=config.get('duration_days', 4),
+                           plan_start_date=(next_run.date() if next_run else today).strftime("%Y-%m-%d"),
+                           next_run_iso=next_run.strftime("%Y-%m-%d") if next_run else "",
                            next_run=format_date_suffix(next_run) if config.get('schedule_enabled', True) and next_run else "OFF",
                            days_data=days_data,
                            models=available_models,
@@ -2261,6 +2398,7 @@ def calendar_page():
                            today_iso=today.strftime("%Y-%m-%d"),
                            prefs=prefs,
                            current_ideas=current_ideas,
+                           recipes=agent.cookbook_manager.load_recipes(),
                            user=current_user)
 
 @app.route('/calendar/settings', methods=['POST'])
@@ -2356,6 +2494,8 @@ def api_update_schedule_settings():
         config['run_time'] = run_time
         if data.get('duration'):
             config['duration_days'] = int(data.get('duration'))
+        if 'schedule_enabled' in data:
+            config['schedule_enabled'] = bool(data['schedule_enabled'])
         agent.calendar_manager.save_config(config)
         
         # Re-init scheduler with new settings
@@ -2363,13 +2503,23 @@ def api_update_schedule_settings():
         
         # Get new next run time
         next_run = agent.calendar_manager.get_next_run_dt()
-        next_run_str = format_date_suffix(next_run)
+        next_run_str = format_date_suffix(next_run) if config.get('schedule_enabled', True) and next_run else "OFF"
+        
+        start_plan = next_run.date() if next_run else date.today()
+        duration_val = config.get('duration_days', 4)
+        if config.get('schedule_enabled', True):
+            plan_dates = [(start_plan + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(duration_val)]
+        else:
+            plan_dates = []
         
         return jsonify({
             "status": "ok", 
             "next_run": next_run_str,
             "run_day": run_day,
-            "run_time": run_time
+            "run_time": run_time,
+            "duration": duration_val,
+            "start_date": start_plan.strftime("%Y-%m-%d"),
+            "plan_dates": plan_dates
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -2383,7 +2533,25 @@ def api_toggle_schedule():
         new_state = not config.get('schedule_enabled', True)
         config['schedule_enabled'] = new_state
         agent.calendar_manager.save_config(config)
-        return jsonify({"status": "ok", "new_state": new_state})
+
+        next_run_str = "OFF"
+        start_plan_str = ""
+        plan_dates = []
+        if new_state:
+            next_run_dt = agent.calendar_manager.get_next_run_dt()
+            next_run_str = format_date_suffix(next_run_dt) if next_run_dt else "OFF"
+            start_plan = next_run_dt.date() if next_run_dt else date.today()
+            start_plan_str = start_plan.strftime("%Y-%m-%d")
+            duration_val = config.get('duration_days', 4)
+            plan_dates = [(start_plan + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(duration_val)]
+
+        return jsonify({
+            "status": "ok",
+            "new_state": new_state,
+            "next_run": next_run_str,
+            "start_date": start_plan_str,
+            "plan_dates": plan_dates
+        })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -2421,11 +2589,25 @@ def api_toggle_slot():
 def handle_ideas():
     agent = get_agent()
     ideas_path = agent.ideas_file
+    pref_path = agent.pref_file
     if request.method == 'POST':
-        data = request.json
-        ideas = data.get('ideas', '')
-        with open(ideas_path, 'w') as f:
-            f.write(ideas)
+        data = request.json or {}
+        if 'ideas' in data:
+            ideas = data.get('ideas', '')
+            with open(ideas_path, 'w') as f:
+                f.write(ideas)
+        if 'long_term_preferences' in data:
+            ltp = data.get('long_term_preferences', '')
+            prefs = {}
+            if os.path.exists(pref_path):
+                try:
+                    with open(pref_path, 'r') as f:
+                        prefs = json.load(f)
+                except:
+                    prefs = {}
+            prefs['long_term_preferences'] = ltp
+            with open(pref_path, 'w') as f:
+                json.dump(prefs, f, indent=4)
         return jsonify({"status": "ok"})
     
     # GET
@@ -2433,7 +2615,17 @@ def handle_ideas():
     if os.path.exists(ideas_path):
         with open(ideas_path, 'r') as f:
             ideas = f.read()
-    return jsonify({"ideas": ideas})
+    prefs = {}
+    if os.path.exists(pref_path):
+        try:
+            with open(pref_path, 'r') as f:
+                prefs = json.load(f)
+        except:
+            prefs = {}
+    return jsonify({
+        "ideas": ideas,
+        "long_term_preferences": prefs.get('long_term_preferences', '')
+    })
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5005, debug=True)

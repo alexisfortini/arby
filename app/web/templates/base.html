@@ -32,43 +32,56 @@
             }
         })(document, window.navigator, 'standalone');
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         body {
-            font-family: 'Outfit', sans-serif;
-            background-color: #f7f9fc;
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #FAF9F6;
         }
 
         .glass {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(241, 245, 249, 0.8);
         }
 
         .brand-gradient {
-            background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+            background: linear-gradient(135deg, #EA580C 0%, #F97316 50%, #FB923C 100%);
             background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
+
+        :focus-visible {
+            outline: 2px solid #EA580C;
+            outline-offset: 2px;
+        }
     </style>
 </head>
 
-<body class="text-slate-800">
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
 
-    <nav class="max-w-2xl mx-auto p-4 flex justify-between items-center">
-        <a href="/" class="text-2xl font-bold brand-gradient">Arby</a>
-        <div class="flex items-center space-x-4 text-sm font-semibold text-slate-500">
-            <a href="/" class="hover:text-slate-800">Home</a>
-            <a href="/calendar" class="hover:text-slate-800">Calendar</a>
-            <a href="/pantry" class="hover:text-slate-800">Pantry</a>
-            <a href="/library" class="hover:text-slate-800">Library</a>
-            <a href="/ideas" class="hover:text-slate-800">Ideas</a>
-            <a href="/settings" class="text-slate-400 hover:text-slate-800">⚙️</a>
+    <nav class="sticky top-0 z-40 glass border-b border-stone-200/70 mb-4">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
+            <a href="/" class="text-2xl font-black brand-gradient tracking-tight flex items-center gap-2">
+                <i data-lucide="chef-hat" class="w-6 h-6 text-orange-600 inline-block -mt-0.5"></i>
+                <span>Arby</span>
+            </a>
+            <div class="flex items-center space-x-1 sm:space-x-3 text-sm font-semibold text-slate-600">
+                <a href="/" class="px-2.5 py-1.5 rounded-lg hover:text-orange-600 hover:bg-orange-50/60 transition-colors {% if request.path == '/' %}text-orange-600 bg-orange-50/80 font-bold{% endif %}">Home</a>
+                <a href="/calendar" class="px-2.5 py-1.5 rounded-lg hover:text-orange-600 hover:bg-orange-50/60 transition-colors {% if '/calendar' in request.path %}text-orange-600 bg-orange-50/80 font-bold{% endif %}">Calendar</a>
+                <a href="/pantry" class="px-2.5 py-1.5 rounded-lg hover:text-orange-600 hover:bg-orange-50/60 transition-colors {% if '/pantry' in request.path %}text-orange-600 bg-orange-50/80 font-bold{% endif %}">Pantry</a>
+                <a href="/library" class="px-2.5 py-1.5 rounded-lg hover:text-orange-600 hover:bg-orange-50/60 transition-colors {% if '/library' in request.path %}text-orange-600 bg-orange-50/80 font-bold{% endif %}">Library</a>
+                <a href="/ideas" class="px-2.5 py-1.5 rounded-lg hover:text-orange-600 hover:bg-orange-50/60 transition-colors {% if '/ideas' in request.path %}text-orange-600 bg-orange-50/80 font-bold{% endif %}">Ideas</a>
+                <a href="/settings" aria-label="Settings" class="p-2 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-stone-100 transition-colors flex items-center justify-center min-w-[40px] min-h-[40px]">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                </a>
+            </div>
         </div>
     </nav>
 
-    <main class="max-w-2xl mx-auto p-4 space-y-6">
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-6 flex-grow w-full">
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         {% for category, message in messages %}
@@ -84,60 +97,176 @@
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="text-center text-s text-slate-400 mt-6 mb-12">
-        <p>Arby Agent {{ app_version }} ({{ git_hash }})</p>
-        <div class="mt-2 flex flex-col items-center gap-1">
-            <a href="/help" class="text-blue-500 hover:text-blue-700 font-semibold transition-colors">Need Help?</a>
+    <footer class="text-center text-sm text-slate-400 mt-auto py-8">
+        <p class="text-xs text-stone-400">Arby Agent {{ app_version }} ({{ git_hash }})</p>
+        <div class="mt-2 flex flex-col items-center gap-1.5">
+            <a href="/help" class="text-xs text-orange-600 hover:text-orange-700 font-semibold transition-colors">Need Help?</a>
             <button onclick="openBugModal()"
-                class="text-red-400 hover:text-red-600 font-semibold transition-colors text-xs">
-                Report Bug 🐞
+                class="inline-flex items-center gap-1.5 text-stone-400 hover:text-red-500 font-medium transition-colors text-xs py-1 px-2 rounded-md hover:bg-red-50/50">
+                <i data-lucide="bug" class="w-3.5 h-3.5"></i>
+                <span>Report Bug</span>
             </button>
         </div>
     </footer>
 
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed bottom-24 right-6 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full px-4 sm:px-0"></div>
+
+    <!-- Global Floating Arby Assistant Button -->
+    <button id="arbyAssistantTrigger" onclick="toggleAssistantDrawer()"
+        aria-label="Open Arby AI Assistant"
+        class="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-tr from-orange-600 to-amber-500 text-white shadow-xl shadow-orange-600/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center group focus:outline-none border-2 border-white/80">
+        <i data-lucide="sparkles" class="w-6 h-6 transition-transform group-hover:rotate-12"></i>
+    </button>
+
+    <!-- Global Arby Assistant Chat Drawer -->
+    <div id="arbyAssistantDrawer"
+        class="fixed bottom-24 right-4 sm:right-6 z-50 w-[94vw] sm:w-[420px] max-h-[580px] h-[80vh] bg-white rounded-3xl shadow-2xl border border-stone-200 flex flex-col overflow-hidden hidden transition-all">
+        <!-- Header -->
+        <div class="p-4 bg-gradient-to-r from-stone-900 to-slate-800 text-white flex items-center justify-between flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-full bg-orange-600 flex items-center justify-center text-white shadow-inner">
+                    <i data-lucide="chef-hat" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+                        <span>Arby Assistant</span>
+                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    </h3>
+                    <p class="text-[10px] text-stone-300">Natural language kitchen commands</p>
+                </div>
+            </div>
+            <button onclick="toggleAssistantDrawer()" class="p-1.5 text-stone-400 hover:text-white rounded-lg hover:bg-white/10 transition">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <!-- Chat History -->
+        <div id="assistantChatMessages" class="flex-1 overflow-y-auto p-4 space-y-3 bg-stone-50/60 text-xs">
+            <!-- Arby Intro Bubble -->
+            <div class="flex items-start gap-2.5">
+                <div class="w-7 h-7 rounded-full bg-orange-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <i data-lucide="chef-hat" class="w-3.5 h-3.5"></i>
+                </div>
+                <div class="p-3 bg-white rounded-2xl rounded-tl-sm border border-stone-200 shadow-sm text-slate-700 leading-relaxed max-w-[88%] space-y-2">
+                    <p>Hi Chef! I can plan meals, swap slots, mark meals cooked, or add items to your grocery list.</p>
+                    <p class="text-[10px] text-stone-400 font-bold uppercase tracking-wider">Try tapping an action:</p>
+                    <div class="flex flex-col gap-1.5 pt-1">
+                        <button onclick="sendAssistantPrompt(this.innerText)" class="text-left text-[11px] bg-stone-100 hover:bg-orange-50 hover:text-orange-700 text-slate-700 font-semibold px-2.5 py-1.5 rounded-lg border border-stone-200 transition">Plan dinners for the next 3 days</button>
+                        <button onclick="sendAssistantPrompt(this.innerText)" class="text-left text-[11px] bg-stone-100 hover:bg-orange-50 hover:text-orange-700 text-slate-700 font-semibold px-2.5 py-1.5 rounded-lg border border-stone-200 transition">Add oat milk to my grocery list</button>
+                        <button onclick="sendAssistantPrompt(this.innerText)" class="text-left text-[11px] bg-stone-100 hover:bg-orange-50 hover:text-orange-700 text-slate-700 font-semibold px-2.5 py-1.5 rounded-lg border border-stone-200 transition">Swap tomorrow lunch and dinner</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Bar -->
+        <div class="p-3 border-t border-stone-100 bg-white flex-shrink-0">
+            <form onsubmit="handleAssistantSubmit(event)" class="flex items-center gap-2">
+                <input type="text" id="assistantInput" placeholder="Tell Arby what to do..."
+                    class="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                <button type="submit" id="assistantSendBtn"
+                    class="p-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl shadow-sm transition flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
     <!-- Bug Report Modal -->
     <div id="bugReportModal"
-        class="fixed inset-0 bg-black/50 hidden flex items-center justify-center z-[100] p-4 backdrop-blur-sm transition-opacity">
-        <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden scale-100 transition-transform">
-            <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <span>🐞</span> Report a Bug
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bugModalTitle"
+        class="fixed inset-0 bg-stone-900/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-stone-200 overflow-hidden scale-100 transition-transform">
+            <div class="p-5 border-b border-stone-100 flex justify-between items-center bg-stone-50/80">
+                <h3 id="bugModalTitle" class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="bug" class="w-4 h-4 text-orange-600"></i>
+                    <span>Report a Bug</span>
                 </h3>
-                <button onclick="closeBugModal()" class="text-2xl text-slate-400 hover:text-slate-600">&times;</button>
+                <button onclick="closeBugModal()" aria-label="Close modal" class="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-stone-200/60 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
             </div>
             <div class="p-6">
-                <p class="text-sm text-slate-500 mb-4">
-                    Describe what happened. We'll include your browser info automatically to help fix it faster.
+                <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+                    Describe what happened. We'll automatically capture your current page context and app version to fix it swiftly.
                 </p>
                 <div class="mb-4">
-                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">What went wrong?</label>
+                    <label for="bugDescription" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">What went wrong?</label>
                     <textarea id="bugDescription" rows="4"
-                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="e.g. I clicked 'Generate' and nothing happened..."></textarea>
+                        class="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        placeholder="e.g. I clicked 'Generate Plan' and..."></textarea>
                 </div>
-                <div class="bg-blue-50/50 rounded-lg p-3 border border-blue-100 mb-4">
-                    <p class="text-[10px] text-blue-600 font-mono">
-                        <span class="font-bold">Context Included:</span><br>
-                        Page: <span id="bugContextPage"></span><br>
+                <div class="bg-orange-50/60 rounded-xl p-3 border border-orange-100/80 mb-5">
+                    <p class="text-[11px] text-orange-950 font-mono leading-relaxed">
+                        <span class="font-bold text-orange-700">Included Diagnostic Context:</span><br>
+                        Page: <span id="bugContextPage" class="font-medium text-slate-700"></span><br>
                         Version: {{ app_version }} ({{ git_hash }})
                     </p>
                 </div>
                 <button onclick="submitGithubIssue()"
-                    class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition flex items-center justify-center gap-2 shadow-lg">
+                    class="w-full bg-slate-900 text-white font-semibold py-3 rounded-xl hover:bg-slate-800 transition flex items-center justify-center gap-2 shadow-md">
                     <span>Open GitHub Issue</span>
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path
-                            d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-                    </svg>
+                    <i data-lucide="external-link" class="w-4 h-4"></i>
                 </button>
             </div>
         </div>
     </div>
 
     <script>
+        // Global Lucide Icon Initializer
+        function renderLucide() {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+        document.addEventListener('DOMContentLoaded', renderLucide);
+
+        // Global Toast Notification Helper
+        window.showToast = function(message, type = 'success', duration = 3500) {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold transform transition-all duration-200 ease-out translate-y-2 opacity-0 ${
+                type === 'success' ? 'bg-emerald-800 text-white border-emerald-700 shadow-emerald-900/20' :
+                type === 'error' ? 'bg-red-700 text-white border-red-600 shadow-red-900/20' :
+                'bg-slate-900 text-white border-slate-800 shadow-slate-900/20'
+            }`;
+
+            const iconMap = {
+                success: '<i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-300"></i>',
+                error: '<i data-lucide="alert-circle" class="w-4 h-4 text-red-300"></i>',
+                info: '<i data-lucide="info" class="w-4 h-4 text-blue-300"></i>'
+            };
+
+            toast.innerHTML = `
+                ${iconMap[type] || iconMap.info}
+                <span class="flex-1">${message}</span>
+            `;
+            container.appendChild(toast);
+            renderLucide();
+
+            // Animate in
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            // Animate out
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 250);
+            }, duration);
+        };
+
         function openBugModal() {
-            document.getElementById('bugReportModal').classList.remove('hidden');
+            const modal = document.getElementById('bugReportModal');
+            modal.classList.remove('hidden');
             document.getElementById('bugContextPage').innerText = window.location.pathname;
+            document.getElementById('bugDescription').focus();
+            renderLucide();
         }
 
         function closeBugModal() {
@@ -146,6 +275,10 @@
 
         function submitGithubIssue() {
             const desc = document.getElementById('bugDescription').value;
+            if (!desc.trim()) {
+                window.showToast("Please enter a short description", "error");
+                return;
+            }
             const context = {
                 url: window.location.href,
                 userAgent: navigator.userAgent,
@@ -156,7 +289,6 @@
             };
 
             const body = `### Description\n${desc}\n\n### Context\n- **Page**: ${context.url}\n- **User Agent**: ${context.userAgent}\n- **Resolution**: ${context.resolution}\n- **Version**: ${context.appVersion} (${context.gitHash})\n- **Time**: ${context.time}`;
-
             const title = "Bug Report: " + (desc.split('\\n')[0].substring(0, 50) + "...");
             const issueUrl = `https://github.com/alexisfortini/arby/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
 
@@ -164,10 +296,122 @@
             closeBugModal();
         }
 
-        // Close on clean click outside
+        // Close on clean click outside or Escape
         document.getElementById('bugReportModal').addEventListener('click', function (e) {
             if (e.target === this) closeBugModal();
         });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeBugModal();
+                const drawer = document.getElementById('arbyAssistantDrawer');
+                if (drawer && !drawer.classList.contains('hidden')) drawer.classList.add('hidden');
+            }
+        });
+
+        // Global Arby Assistant Functions
+        function toggleAssistantDrawer() {
+            const drawer = document.getElementById('arbyAssistantDrawer');
+            if (!drawer) return;
+            const isHidden = drawer.classList.contains('hidden');
+            if (isHidden) {
+                drawer.classList.remove('hidden');
+                document.getElementById('assistantInput').focus();
+                renderLucide();
+            } else {
+                drawer.classList.add('hidden');
+            }
+        }
+
+        function sendAssistantPrompt(promptText) {
+            document.getElementById('assistantInput').value = promptText;
+            document.getElementById('assistantInput').focus();
+            handleAssistantSubmit(new Event('submit'));
+        }
+
+        async function handleAssistantSubmit(e) {
+            if (e) e.preventDefault();
+            const input = document.getElementById('assistantInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const chatContainer = document.getElementById('assistantChatMessages');
+            
+            // Add user message bubble
+            const userBubble = document.createElement('div');
+            userBubble.className = 'flex items-start justify-end gap-2';
+            userBubble.innerHTML = `
+                <div class="p-3 bg-orange-600 text-white rounded-2xl rounded-tr-sm text-xs leading-relaxed max-w-[85%] shadow-sm">
+                    ${escapeHtml(message)}
+                </div>
+            `;
+            chatContainer.appendChild(userBubble);
+            input.value = '';
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            // Add typing indicator
+            const typingBubble = document.createElement('div');
+            typingBubble.id = 'assistantTypingBubble';
+            typingBubble.className = 'flex items-start gap-2.5';
+            typingBubble.innerHTML = `
+                <div class="w-7 h-7 rounded-full bg-orange-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm"><i data-lucide="chef-hat" class="w-3.5 h-3.5"></i></div>
+                <div class="p-3 bg-white rounded-2xl rounded-tl-sm border border-stone-200 text-slate-400 text-xs italic flex items-center gap-1.5 shadow-sm">
+                    <span class="animate-pulse">Cooking up action...</span>
+                </div>
+            `;
+            chatContainer.appendChild(typingBubble);
+            if (window.lucide) lucide.createIcons();
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            try {
+                const res = await fetch('/api/agent/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+                const data = await res.json();
+                typingBubble.remove();
+
+                const replyBubble = document.createElement('div');
+                replyBubble.className = 'flex items-start gap-2.5';
+                replyBubble.innerHTML = `
+                    <div class="w-7 h-7 rounded-full bg-orange-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm"><i data-lucide="chef-hat" class="w-3.5 h-3.5"></i></div>
+                    <div class="p-3 bg-white rounded-2xl rounded-tl-sm border border-stone-200 text-slate-800 text-xs leading-relaxed max-w-[88%] shadow-sm space-y-1.5">
+                        <p>${escapeHtml(data.reply || "Done!")}</p>
+                        ${data.action_taken ? `<span class="inline-block text-[10px] font-mono bg-stone-100 text-orange-700 px-2 py-0.5 rounded border border-stone-200">action: ${data.action_taken}</span>` : ''}
+                    </div>
+                `;
+                chatContainer.appendChild(replyBubble);
+                if (window.lucide) lucide.createIcons();
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+
+                if (data.reload) {
+                    if (window.showToast) window.showToast("Schedule updated by Arby! Refreshing view...");
+                    setTimeout(() => window.location.reload(), 1500);
+                }
+            } catch (err) {
+                console.error(err);
+                typingBubble.remove();
+                const errBubble = document.createElement('div');
+                errBubble.className = 'flex items-start gap-2.5';
+                errBubble.innerHTML = `
+                    <div class="w-7 h-7 rounded-full bg-red-600 text-white flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+                    </div>
+                    <div class="p-3 bg-red-50 text-red-700 rounded-2xl text-xs leading-relaxed max-w-[85%] border border-red-200">
+                        Sorry, I encountered an error executing that command.
+                    </div>
+                `;
+                chatContainer.appendChild(errBubble);
+                if (window.lucide) lucide.createIcons();
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.innerText = text;
+            return div.innerHTML;
+        }
     </script>
 
 </body>

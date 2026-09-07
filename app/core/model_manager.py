@@ -38,20 +38,94 @@ class GeminiProvider:
                 content_parts.append(genai.types.Part.from_uri(f.uri, mime_type=f.mime_type))
         content_parts.append(user_prompt)
 
-        response = self.client.models.generate_content(
-            model=model_id,
-            contents=content_parts,
-            config=genai.types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                response_mime_type="application/json",
-                response_schema=schema,
-                max_output_tokens=8192
+        config_kwargs = {
+            "system_instruction": system_instruction,
+            "response_mime_type": "application/json",
+            "response_schema": schema,
+            "max_output_tokens": 16384
+        }
+        
+        # Support thinking config if available in Google GenAI SDK
+        if hasattr(genai.types, 'ThinkingConfig'):
+            try:
+                config_kwargs["thinking_config"] = genai.types.ThinkingConfig(thinking_budget=1024)
+            except Exception:
+                pass
+
+        try:
+            response = self.client.models.generate_content(
+                model=model_id,
+                contents=content_parts,
+                config=genai.types.GenerateContentConfig(**config_kwargs)
             )
-        )
-        if response.parsed:
-            return response.parsed.model_dump()
-        else:
-            raise Exception("Gemini returned empty response")
+        except Exception as api_err:
+            # Fallback without thinking_config if unsupported for this model
+            if "thinking_config" in config_kwargs:
+                config_kwargs.pop("thinking_config", None)
+                response = self.client.models.generate_content(
+                    model=model_id,
+                    contents=content_parts,
+                    config=genai.types.GenerateContentConfig(**config_kwargs)
+                )
+            else:
+                raise api_err
+
+        # 1. Primary: SDK-parsed Pydantic model
+        if getattr(response, 'parsed', None):
+            try:
+                return response.parsed.model_dump()
+            except Exception as e:
+                print(f"DEBUG: parsed.model_dump() error: {e}")
+
+        # 2. Inspect candidate finish reason
+        finish_reason = None
+        if hasattr(response, 'candidates') and response.candidates:
+            c0 = response.candidates[0]
+            finish_reason = getattr(c0, 'finish_reason', None)
+            print(f"DEBUG: Gemini candidate finish_reason: {finish_reason}")
+
+        # 3. Fallback: Parse raw response text
+        raw_text = None
+        try:
+            raw_text = getattr(response, 'text', None)
+        except Exception as e:
+            print(f"DEBUG: response.text threw: {e}")
+
+        # 4. Fallback: Extract from candidate content parts
+        if not raw_text and hasattr(response, 'candidates') and response.candidates:
+            c0 = response.candidates[0]
+            if hasattr(c0, 'content') and hasattr(c0.content, 'parts'):
+                parts_texts = [p.text for p in c0.content.parts if hasattr(p, 'text') and p.text]
+                if parts_texts:
+                    raw_text = "".join(parts_texts)
+
+        if raw_text:
+            cleaned = raw_text.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            if cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+            try:
+                return json.loads(cleaned)
+            except Exception as json_err:
+                print(f"DEBUG: json.loads failed on raw text: {json_err}")
+                try:
+                    return schema.model_validate_json(cleaned).model_dump()
+                except Exception as pyd_err:
+                    print(f"DEBUG: model_validate_json failed: {pyd_err}")
+
+        # Construct specific, helpful error
+        error_msg = f"Gemini returned empty response"
+        if finish_reason:
+            error_msg += f" (finish_reason: {finish_reason})"
+            if finish_reason == "MAX_TOKENS":
+                error_msg += " - The plan exceeded the maximum token limit. Try planning fewer days."
+            elif finish_reason == "SAFETY":
+                error_msg += " - Blocked by Gemini safety guidelines."
+        raise Exception(error_msg)
 
     def simple_generate(self, model_id, system_instruction, user_prompt):
         response = self.client.models.generate_content(
@@ -343,38 +417,38 @@ class ModelManager:
 
     def get_available_models(self):
         """Returns list of models with their locked status."""
-        # Defaults
+        # Curated, logically ordered models for Head Chef, Sous Chef, and Librarian
         defaults = [
-            # Google
-            {"id": "gemini-3-pro-preview", "name": "Gemini 3 Pro (Preview)", "provider": "google", "top_pick": True, "recommended": True, "description": "Deep Reasoning. The smartest model available.", "default_cost_in": 2.00, "default_cost_out": 12.00},
-            {"id": "gemini-3-flash-preview", "name": "Gemini 3 Flash (Preview)", "provider": "google", "recommended": True, "description": "High Speed Agent. Smartest 'fast' model.", "default_cost_in": 0.50, "default_cost_out": 3.00},
-            {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "provider": "google", "description": "The perfect balance of smarts & speed for Arby.", "default_cost_in": 0.30, "default_cost_out": 2.50},
-            {"id": "gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash-Lite", "provider": "google", "description": "Bulk Processing. Great for large PDF libraries.", "default_cost_in": 0.10, "default_cost_out": 0.40},
-            {"id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro", "provider": "google", "description": "Complex Logic. Use if Flash fails.", "default_cost_in": 1.25, "default_cost_out": 10.00},
-            {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "provider": "google", "description": "Reliability. The 'old reliable' from late 2025.", "default_cost_in": 0.10, "default_cost_out": 0.40},
+            # === GOOGLE GEMINI ===
+            # Flagships / Head Chef
+            {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "provider": "google", "top_pick": True, "recommended": True, "description": "High intelligence, fast speed, and structured culinary logic.", "default_cost_in": 0.30, "default_cost_out": 2.50},
+            {"id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro", "provider": "google", "recommended": True, "description": "Complex recipe synthesis, reasoning & flavor pairing.", "default_cost_in": 1.25, "default_cost_out": 10.00},
+            {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "provider": "google", "description": "Ultra-fast generation workhorse for daily meal plans.", "default_cost_in": 0.10, "default_cost_out": 0.40},
+            {"id": "gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash Lite", "provider": "google", "recommended": True, "description": "Lightning fast Sous Chef & bulk cookbook organizer.", "default_cost_in": 0.075, "default_cost_out": 0.30},
+            {"id": "gemini-1.5-pro", "name": "Gemini 1.5 Pro", "provider": "google", "description": "High-context legacy powerhouse.", "default_cost_in": 1.25, "default_cost_out": 5.00},
+            {"id": "gemini-1.5-flash", "name": "Gemini 1.5 Flash", "provider": "google", "description": "Fast legacy model.", "default_cost_in": 0.075, "default_cost_out": 0.30},
 
-            # Anthropic
-            {"id": "claude-opus-4-6-20260205", "name": "Claude 4.6 Opus", "provider": "anthropic", "recommended": True, "top_pick": True, "description": "The absolute peak of Claude architecture (Feb 2026).", "default_cost_in": 5.00, "default_cost_out": 25.00},
-            {"id": "claude-opus-4-5-20251101", "name": "Claude 4.5 Opus", "provider": "anthropic", "description": "The peak of late 2025 Claude architecture.", "default_cost_in": 15.00, "default_cost_out": 75.00},
-            {"id": "claude-sonnet-4-5-20250929", "name": "Claude 4.5 Sonnet", "provider": "anthropic", "recommended": True, "description": "Ultra-fast, ultra-smart creative partner.", "default_cost_in": 3.00, "default_cost_out": 15.00},
-            {"id": "claude-haiku-4-5-20251001", "name": "Claude 4.5 Haiku", "provider": "anthropic", "description": "Fast and intelligent ultra-efficient model.", "default_cost_in": 0.25, "default_cost_out": 1.25},
-            
-            # OpenAI
-            {"id": "gpt-5", "name": "GPT-5", "provider": "openai", "recommended": True, "top_pick": True, "description": "The current flagship from OpenAI.", "default_cost_in": 5.00, "default_cost_out": 15.00},
-            {"id": "gpt-5-mini", "name": "GPT-5 Mini", "provider": "openai", "description": "Fast and smart miniature flagship.", "default_cost_in": 0.30, "default_cost_out": 1.20},
-            {"id": "gpt-4.1", "name": "GPT-4.1", "provider": "openai", "description": "Reliable legacy flagship.", "default_cost_in": 2.50, "default_cost_out": 10.00},
-            {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai", "recommended": True, "description": "Standard multimodal model.", "default_cost_in": 2.50, "default_cost_out": 10.00},
-            {"id": "o1", "name": "OpenAI o1", "provider": "openai", "description": "Reasoning & coding specialist.", "default_cost_in": 15.00, "default_cost_out": 60.00},
-            {"id": "o3", "name": "OpenAI o3", "provider": "openai", "description": "Next-gen reasoning model.", "default_cost_in": 3.00, "default_cost_out": 12.00},
-            {"id": "o3-mini", "name": "OpenAI o3-mini", "provider": "openai", "description": "Reasoning speedster.", "default_cost_in": 1.10, "default_cost_out": 4.40},
-            {"id": "o4-mini", "name": "OpenAI o4-mini", "provider": "openai", "description": "Efficient next-gen reasoning.", "default_cost_in": 0.50, "default_cost_out": 2.00},
-            
-            # xAI
-            {"id": "grok-4-1-fast-reasoning", "name": "Grok 4.1 Fast", "provider": "xai", "recommended": True, "top_pick": True, "description": "Advanced reasoning from xAI.", "default_cost_in": 5.00, "default_cost_out": 20.00},
-            {"id": "grok-4-0709", "name": "Grok 4", "provider": "xai", "recommended": True, "description": "Latest xAI frontier model.", "default_cost_in": 5.00, "default_cost_out": 20.00},
-            {"id": "grok-3", "name": "Grok 3", "provider": "xai", "description": "Stable Grok flagship.", "default_cost_in": 2.00, "default_cost_out": 10.00},
-            {"id": "grok-3-mini", "name": "Grok 3 Mini", "provider": "xai", "description": "Efficient Grok model.", "default_cost_in": 0.50, "default_cost_out": 2.00},
-            {"id": "grok-2-vision-1212", "name": "Grok 2 Vision", "provider": "xai", "description": "Visual intelligence from Grok.", "default_cost_in": 2.00, "default_cost_out": 10.00},
+            # === OPENAI ===
+            # Frontier / Head Chef
+            {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai", "top_pick": True, "recommended": True, "description": "Reliable multimodal flagship with creative culinary intuition.", "default_cost_in": 2.50, "default_cost_out": 10.00},
+            {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openai", "recommended": True, "description": "Quick, smart, and ultra-cost-effective assistant.", "default_cost_in": 0.15, "default_cost_out": 0.60},
+            # Reasoning Specialists
+            {"id": "o3-mini", "name": "OpenAI o3-mini", "provider": "openai", "recommended": True, "description": "Frontier fast reasoning speedster.", "default_cost_in": 1.10, "default_cost_out": 4.40},
+            {"id": "o1", "name": "OpenAI o1", "provider": "openai", "description": "Deep reasoning and nutritional logic specialist.", "default_cost_in": 15.00, "default_cost_out": 60.00},
+            {"id": "o1-mini", "name": "OpenAI o1-mini", "provider": "openai", "description": "Compact STEM & logic reasoning model.", "default_cost_in": 1.10, "default_cost_out": 4.40},
+
+            # === ANTHROPIC ===
+            # Frontier / Head Chef
+            {"id": "claude-3-7-sonnet-20250219", "name": "Claude 3.7 Sonnet", "provider": "anthropic", "top_pick": True, "recommended": True, "description": "Anthropic flagship with hybrid reasoning and deep culinary nuance.", "default_cost_in": 3.00, "default_cost_out": 15.00},
+            {"id": "claude-3-5-sonnet-20241022", "name": "Claude 3.5 Sonnet", "provider": "anthropic", "recommended": True, "description": "Creative culinary partner with rich recipe descriptions.", "default_cost_in": 3.00, "default_cost_out": 15.00},
+            # Fast / Sous Chef
+            {"id": "claude-3-5-haiku-20241022", "name": "Claude 3.5 Haiku", "provider": "anthropic", "recommended": True, "description": "Fast, smart, and ultra-efficient kitchen assistant.", "default_cost_in": 0.80, "default_cost_out": 4.00},
+            {"id": "claude-3-opus-20240229", "name": "Claude 3 Opus", "provider": "anthropic", "description": "Deep reasoning and complex meal plan synthesis.", "default_cost_in": 15.00, "default_cost_out": 75.00},
+
+            # === XAI (GROK) ===
+            {"id": "grok-2-latest", "name": "Grok 2", "provider": "xai", "top_pick": True, "recommended": True, "description": "Latest xAI frontier model with great general intelligence.", "default_cost_in": 2.00, "default_cost_out": 10.00},
+            {"id": "grok-2-vision-1212", "name": "Grok 2 Vision", "provider": "xai", "description": "Multimodal vision & recipe analysis.", "default_cost_in": 2.00, "default_cost_out": 10.00},
+            {"id": "grok-beta", "name": "Grok Beta", "provider": "xai", "description": "Fast conversational model from xAI.", "default_cost_in": 5.00, "default_cost_out": 15.00},
         ]
         
         config = self.load_config()
@@ -391,12 +465,11 @@ class ModelManager:
         # Enrich with Status and User Costs
         saved_costs = config.get('costs', {})
         health_status = config.get('health', {})
-        core_model = config.get('core_model', 'gemini-2.5-flash') # Updated default to match new list
+        core_model = config.get('core_model', 'gemini-2.5-flash')
 
         for m in active_models:
             mid = m['id']
-            # Locked Status
-            provider = m["provider"]
+            provider = m.get("provider", "google")
             if provider == 'custom':
                  has_own_key = bool(m.get('api_key'))
                  has_default_key = bool(self.keys.get('openai'))
@@ -443,7 +516,7 @@ class ModelManager:
         
     def get_core_model_id(self):
         config = self.load_config()
-        return config.get('core_model', 'gemini-2.0-flash-exp')
+        return config.get('core_model', 'gemini-2.5-flash')
 
     def set_sous_chef_model(self, model_id):
         config = self.load_config()
@@ -452,8 +525,7 @@ class ModelManager:
 
     def get_sous_chef_model_id(self):
         config = self.load_config()
-        # Default to 1.5 Flash for high reliability/quota if not set
-        return config.get('sous_chef_model', 'gemini-2.0-flash')
+        return config.get('sous_chef_model', 'gemini-2.5-flash-lite')
 
     def set_librarian_model(self, model_id):
         config = self.load_config()
@@ -462,8 +534,7 @@ class ModelManager:
 
     def get_librarian_model_id(self):
         config = self.load_config()
-        # Default to 1.5 Flash - best for PDF ingestion
-        return config.get('librarian_model', 'gemini-2.0-flash')
+        return config.get('librarian_model', 'gemini-2.5-flash-lite')
 
     def update_model_cost(self, model_id, cost_in, cost_out):
         config = self.load_config()
@@ -567,10 +638,139 @@ class ModelManager:
         self.save_config(config)
         
     def restore_defaults(self):
-        """Unhide all defaults. Keep customs?"""
+        """Unhide all defaults and reset custom models."""
         config = self.load_config()
         config['hidden_ids'] = []
+        config['custom_models'] = []
         self.save_config(config)
+
+    def discover_and_refresh_models(self):
+        """
+        Dynamically connects to all active providers (Google, OpenAI, Anthropic, xAI),
+        tests all current models, and discovers newly released general chat/reasoning models
+        while ignoring niche dated snapshots, audio, transcribe, and nano models.
+        """
+        discovered_count = 0
+        tested_count = 0
+        results = []
+
+        config = self.load_config()
+        if 'health' not in config:
+            config['health'] = {}
+
+        # 1. Test all currently defined available models
+        for model in self.get_available_models():
+            if not model.get('locked'):
+                mid = model['id']
+                try:
+                    status, msg = self.test_connection(mid)
+                    results.append({"id": mid, "provider": model['provider'], "status": status, "msg": msg})
+                    tested_count += 1
+                except Exception as e:
+                    results.append({"id": mid, "provider": model['provider'], "status": "error", "msg": str(e)})
+
+        # 2. Check each provider for major new models not yet in curated catalog
+        known_ids = {m['id'] for m in self.get_available_models()}
+        custom_candidates = []
+
+        # Google Discovery (Filter out raw dated snapshots, audio, transcribe, tts)
+        if 'google' in self.providers:
+            try:
+                g_client = self.providers['google'].client
+                for gm in g_client.models.list():
+                    raw_id = gm.name.replace("models/", "")
+                    is_chat = raw_id.startswith("gemini-") and any(tier in raw_id for tier in ["pro", "flash"])
+                    is_excluded = any(skip in raw_id for skip in ["tts", "image", "embedding", "customtools", "robotics", "transcribe", "latest"])
+                    if is_chat and not is_excluded:
+                        if raw_id not in known_ids and not any(c['id'] == raw_id for c in custom_candidates):
+                            custom_candidates.append({
+                                "id": raw_id,
+                                "name": raw_id.replace("gemini-", "Gemini ").replace("-", " ").title(),
+                                "provider": "google",
+                                "description": "Auto-discovered Google Gemini model."
+                            })
+            except Exception as e:
+                print(f"DEBUG: Google discovery error: {e}")
+
+        # OpenAI Discovery (Filter out date snapshots like 2025-08-07, nano, audio, tts, transcribe)
+        if 'openai' in self.providers:
+            try:
+                import re
+                o_client = self.providers['openai'].client
+                for om in o_client.models.list():
+                    oid = om.id
+                    is_chat = any(oid.startswith(p) for p in ["gpt-5", "gpt-4.1", "o1", "o3", "o4"])
+                    # Exclude date stamped snapshots e.g. -2026-03-05, -2025-08-07
+                    has_date = bool(re.search(r'\d{4}-\d{2}-\d{2}', oid))
+                    is_excluded = has_date or any(skip in oid for skip in ["transcribe", "tts", "search", "diarize", "realtime", "audio", "embedding", "nano", "codex"])
+                    if is_chat and not is_excluded:
+                        if oid not in known_ids and not any(c['id'] == oid for c in custom_candidates):
+                            custom_candidates.append({
+                                "id": oid,
+                                "name": oid.upper() if len(oid) <= 4 else oid.title(),
+                                "provider": "openai",
+                                "description": "Auto-discovered OpenAI reasoning/chat model."
+                            })
+            except Exception as e:
+                print(f"DEBUG: OpenAI discovery error: {e}")
+
+        # Anthropic Discovery
+        if 'anthropic' in self.providers:
+            try:
+                import re
+                a_client = self.providers['anthropic'].client
+                if hasattr(a_client, 'models') and hasattr(a_client.models, 'list'):
+                    res = a_client.models.list()
+                    a_data = res.data if hasattr(res, 'data') else res
+                    for am in a_data:
+                        aid = am.id
+                        if any(p in aid for p in ["sonnet", "opus", "haiku"]):
+                            has_date = bool(re.search(r'\d{8}', aid)) and not aid.endswith("20251001")
+                            if not has_date and aid not in known_ids and not any(c['id'] == aid for c in custom_candidates):
+                                custom_candidates.append({
+                                    "id": aid,
+                                    "name": aid.replace("-", " ").title(),
+                                    "provider": "anthropic",
+                                    "description": "Auto-discovered Anthropic Claude model."
+                                })
+            except Exception as e:
+                print(f"DEBUG: Anthropic discovery error: {e}")
+
+        # xAI Discovery
+        if 'xai' in self.providers:
+            try:
+                x_client = self.providers['xai'].client
+                for xm in x_client.models.list():
+                    xid = xm.id
+                    if "grok" in xid and not any(skip in xid for skip in ["image", "video", "build"]):
+                        if xid not in known_ids and not any(c['id'] == xid for c in custom_candidates):
+                            custom_candidates.append({
+                                "id": xid,
+                                "name": xid.replace("-", " ").title(),
+                                "provider": "xai",
+                                "description": "Auto-discovered xAI Grok model."
+                            })
+            except Exception as e:
+                print(f"DEBUG: xAI discovery error: {e}")
+
+        # Add validated new candidates
+        config = self.load_config()
+        if 'custom_models' not in config:
+            config['custom_models'] = []
+
+        for cand in custom_candidates:
+            try:
+                prov = self.providers[cand['provider']]
+                prov.ping(cand['id'])
+                if not any(m['id'] == cand['id'] for m in config['custom_models']):
+                    config['custom_models'].append(cand)
+                    config['health'][cand['id']] = {"status": "ok", "msg": "Auto-discovered & Verified", "last_checked": time.time()}
+                    discovered_count += 1
+            except Exception:
+                pass
+
+        self.save_config(config)
+        return {"discovered": discovered_count, "tested": tested_count, "results": results}
 
     def generate(self, model_id, system_instruction, user_prompt, files=None, schema=WeeklyPlan):
         # 1. Identify Provider (Re-fetch to include dynamic ones)

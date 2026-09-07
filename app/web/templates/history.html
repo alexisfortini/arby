@@ -14,14 +14,15 @@
             <h2 class="font-bold text-slate-700">{{ entry.date }}</h2>
             <div class="flex gap-2">
                 <button onclick="openReviewModal({{ idx }})"
-                    class="text-sm bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg font-semibold hover:bg-indigo-200">
-                    ⭐ Review
+                    class="text-sm bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg font-semibold hover:bg-indigo-200 inline-flex items-center gap-1.5">
+                    <i data-lucide="star" class="w-3.5 h-3.5"></i>
+                    <span>Review</span>
                 </button>
                 <form action="/history/delete/{{ idx }}" method="POST"
                     onsubmit="return confirm('Delete this history entry?')">
                     <button type="submit"
-                        class="text-sm bg-red-50 text-red-500 px-3 py-1 rounded-lg font-semibold hover:bg-red-100">
-                        🗑️
+                        class="text-sm bg-red-50 text-red-500 p-2 rounded-lg font-semibold hover:bg-red-100 inline-flex items-center justify-center" title="Delete Entry">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
                 </form>
             </div>

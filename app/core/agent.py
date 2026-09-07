@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import uuid
 import google.genai as genai
 from datetime import datetime, timedelta
 from pydantic import BaseModel
@@ -11,7 +12,7 @@ from app.core.calendar_manager import CalendarManager
 from app.core.cookbook_manager import CookbookManager
 from app.core.review_manager import ReviewManager
 
-from app.core.schemas import WeeklyPlan, DayPlan, MealDetail, PantryRecommendations
+from app.core.schemas import WeeklyPlan, DayPlan, MealDetail, PantryRecommendations, AssistantActionResponse
 from app.core.model_manager import ModelManager
 
 class ArbyAgent:
@@ -133,7 +134,7 @@ class ArbyAgent:
         with open(self.history_file, 'w') as f:
             json.dump([], f, indent=4)
 
-    def construct_prompt(self, start_date=None, duration=None):
+    def construct_prompt(self, start_date=None, duration=None, target_slots=None, chef_user_ratio=50, ideas_override=None):
         """Constructs the system and user prompts based on current state."""
         # Load Preferences
         pref_path = self.pref_file
@@ -159,35 +160,55 @@ class ArbyAgent:
         # Get Config
         config = self.calendar_manager.load_config()
         
-        # Determine Start Date
-        if start_date:
-            if isinstance(start_date, str):
-                 start_date = datetime.strptime(start_date, "%Y-%m-%d")
-        else:
-             today = datetime.now()
-             start_date = today + timedelta(days=1)
-             
-        # Determine Duration
-        days_to_plan = int(duration) if duration else config.get('duration_days', 4)
-        
-        planning_dates = []
+        # Determine Schedule Targets
         days_config_summary = []
-        for i in range(days_to_plan):
-            d = start_date + timedelta(days=i)
-            day_name = d.strftime("%A")
-            date_str = d.strftime("%Y-%m-%d")
-            day_sched = config['schedule'].get(day_name, {})
-            if any(day_sched.values()):
-                planning_dates.append(date_str)
-                meals_needed = [m for m, active in day_sched.items() if active]
-                days_config_summary.append(f"{day_name} ({date_str}): {', '.join(meals_needed)}")
+        if target_slots:
+            slot_map = {}
+            for s in target_slots:
+                if isinstance(s, dict):
+                    d, m = s.get('date'), s.get('meal_type')
+                elif isinstance(s, (list, tuple)) and len(s) == 2:
+                    d, m = s[0], s[1]
+                else:
+                    continue
+                if d and m:
+                    slot_map.setdefault(d, []).append(m)
+            for d_str, meals in sorted(slot_map.items()):
+                try:
+                    d_obj = datetime.strptime(d_str, "%Y-%m-%d")
+                    day_name = d_obj.strftime("%A")
+                except:
+                    day_name = "Scheduled Day"
+                days_config_summary.append(f"{day_name} ({d_str}): {', '.join(meals)}")
+        else:
+            if start_date:
+                if isinstance(start_date, str):
+                    try:
+                        start_date = datetime.strptime(start_date, "%Y-%m-%d")
+                    except:
+                        start_date = datetime.now() + timedelta(days=1)
+            else:
+                today = datetime.now()
+                start_date = today + timedelta(days=1)
+                 
+            days_to_plan = int(duration) if duration else config.get('duration_days', 4)
+            for i in range(days_to_plan):
+                d = start_date + timedelta(days=i)
+                day_name = d.strftime("%A")
+                date_str = d.strftime("%Y-%m-%d")
+                day_sched = config['schedule'].get(day_name, {})
+                if any(day_sched.values()):
+                    meals_needed = [m for m, active in day_sched.items() if active]
+                    days_config_summary.append(f"{day_name} ({date_str}): {', '.join(meals_needed)}")
         
-        # User Context
-        user_ideas = "No specific cravings."
-        if data_ctx.get('use_ideas') and os.path.exists(self.ideas_file):
+        # User Ideas
+        user_ideas = ideas_override if ideas_override is not None else "No specific cravings."
+        if user_ideas == "No specific cravings." and data_ctx.get('use_ideas') and os.path.exists(self.ideas_file):
             with open(self.ideas_file, 'r') as f:
-                user_ideas = f.read().strip()
-                
+                content = f.read().strip()
+                if content:
+                    user_ideas = content
+                    
         past_meals = "Not provided."
         if data_ctx.get('use_history'):
             depth = prefs.get('history_depth', 10)
@@ -203,70 +224,82 @@ class ArbyAgent:
             try:
                 with open(self.cookbook_file, 'r') as f:
                     cookbook_data = json.load(f)
-                    # Provide a condensed list of available recipes to the chef with ratings
                     recipes_list = []
                     for r in cookbook_data:
                         rating_str = f" ({r.get('rating')} stars)" if r.get('rating') and r.get('rating') > 0 else ""
-                        recipes_list.append(f"- {r['name']}{rating_str} ({r.get('protein', 'Veg')})")
-                    cookbook_summary = "\n".join(recipes_list[:50]) # Limit to 50 for prompt size
+                        recipes_list.append(f"- {r['name']}{rating_str} ({r.get('protein', 'Veg')}) [ID: {r.get('id')}]")
+                    cookbook_summary = "\n".join(recipes_list[:60])
             except:
                 cookbook_summary = "Error loading cookbook library."
         
+        # Chef vs Cookbook Recipe Ratio
+        try:
+            chef_ratio = int(chef_user_ratio) if chef_user_ratio is not None else 50
+        except:
+            chef_ratio = 50
+        cookbook_ratio = 100 - chef_ratio
+        
+        ratio_instruction = (
+            f"CHEF VS COOKBOOK RATIO: The user requests approximately {chef_ratio}% creative Chef recipes "
+            f"and {cookbook_ratio}% recipes selected directly from their Cookbook Library below. Strictly adhere to this balance."
+        )
+
         system_instruction = f"""
-        You are Arby, an expert meal planning chef.
+        You are Arby, an expert culinary assistant and meal planning chef.
         
         YOUR GOAL:
-        Create a detailed meal plan with full recipes for specific dates.
+        Create or update meals with complete, delicious recipes for the specific dates and slots requested.
         
         CUSTOMER PREFERENCES:
         {long_term_prefs}
         
+        {ratio_instruction}
+
         OUTPUT FORMAT:
         Return a JSON object matching the `WeeklyPlan` schema.
-        - `days`: A list of objects, each containing a `date` and meal slots (breakfast, lunch, dinner).
-        - **IMPORTANT**: Each meal slot MUST contain:
-            - `name`: The name of the dish.
-            - `ingredients`: A specific list of ingredients and quantities for that dish.
-            - `instructions`: Step-by-step cooking instructions.
-            - `source`: Set to "library" if the recipe is strictly from the Cookbook Library, or "chef" if it is a new recipe or heavily modified.
-        - `shopping_list`: A consolidated master list of ALL ingredients to buy for the week.
-        - `summary_message`: A friendly summary of the plan (the chef's notes). Should be a full paragraph.
+        - `days`: A list of objects, each containing a `date` (YYYY-MM-DD) and meal slots (breakfast, lunch, dinner).
+        - **IMPORTANT**: Each filled meal slot MUST contain:
+            - `name`: The exact dish name.
+            - `ingredients`: Specific list of ingredients and quantities for that dish.
+            - `instructions`: Clear step-by-step cooking instructions.
+            - `source`: Set to "library" if taken from the Cookbook Library, or "chef" if it is a new/modified recipe.
+            - `recipe_id`: If selected from the Cookbook Library, set to the library recipe ID.
+        - `shopping_list`: Consolidated list of ingredients to purchase.
+        - `summary_message`: A warm, friendly message from Chef Arby summarizing the meal lineup.
         
         CONSTRAINTS:
-        1. Only fill the meal slots (Breakfast/Lunch/Dinner) requested by the user for each date.
-        2. Take inspiration from recipes in the Cookbook Library (provided below) if they fit the schedule and inventory. If you use a library recipe, you can adjust quantities to fit the requested servings.
-        3. Obey the User Ideas (provided below) for the plan into account when planning the meals.
-        4. Prioritize using Inventory items (provided below).
-        5. Learn what the user likes based on the Recent History and Cookbook Ratings. Favor recipes with 4 or 5 stars. If a recipe has a low rating (1 or 2 stars), avoid using it unless specifically asked. Do not repeat the same recipes too often.
+        1. Only fill the meal slots (Breakfast/Lunch/Dinner) specifically requested in the schedule below.
+        2. Obey the User Ideas / Cravings provided below.
+        3. Prioritize using stocked Inventory items where appropriate.
+        4. Learn from History and Cookbook Ratings. Favor dishes with 4-5 stars. Avoid dishes with 1-2 stars unless specifically requested.
         """
         
         user_prompt = f"""
-        **Planning Schedule:**
-        Please plan meals for these days, respecting the specific meal slots requested:
+        **Requested Schedule & Slots:**
+        {chr(10).join([f"- {s}" for s in days_config_summary]) if days_config_summary else "Plan meals according to standard schedule."}
         
-        **Daily Requirements:**
-        {chr(10).join([f"- {s}" for s in days_config_summary])}
+        **User Ideas / Cravings:** {user_ideas}
         
-        **User Ideas:** {user_ideas}
-        
-        **Your Cookbook Library (Preferred Sources):**
+        **Cookbook Library (User Recipes):**
         {cookbook_summary}
         
-        **Inventory Items:** {inventory_summary}
+        **Available Inventory:** {inventory_summary}
         
         **Recent History:** {past_meals}
         """
         return system_instruction, user_prompt
 
-    def generate_draft(self, model_id=None, start_date=None, duration=None):
-        """Generates a Meal Plan Draft using the selected model."""
+    def generate_draft(self, model_id=None, start_date=None, duration=None, target_slots=None, chef_user_ratio=50, ideas_override=None):
+        """Generates meals using the selected model with slot targets and chef ratio."""
         print(f"Starting Arby Run with Model: {model_id or 'Default'}...")
+        system_instruction, user_prompt = self.construct_prompt(
+            start_date=start_date, 
+            duration=duration,
+            target_slots=target_slots,
+            chef_user_ratio=chef_user_ratio,
+            ideas_override=ideas_override
+        )
         
-        # 1. Construct Prompt
-        system_instruction, user_prompt = self.construct_prompt(start_date=start_date, duration=duration)
-        
-        # 7. Call Model Manager
-        # Default to Configured Core Model if no model selected
         if not model_id:
             model_id = self.model_manager.get_core_model_id()
             
@@ -278,6 +311,332 @@ class ArbyAgent:
             )
         except Exception as e:
             return {"error": f"Generation failed: {str(e)}"}
+
+    def plan_slots(self, target_slots=None, model_id=None, start_date=None, duration=None, chef_user_ratio=50, ideas_override=None):
+        """
+        Plans meals specifically for the requested slots (or horizon),
+        and directly updates calendar.json.
+        """
+        result = self.generate_draft(
+            model_id=model_id,
+            start_date=start_date,
+            duration=duration,
+            target_slots=target_slots,
+            chef_user_ratio=chef_user_ratio,
+            ideas_override=ideas_override
+        )
+        if isinstance(result, dict) and "error" in result:
+            return result
+
+        # Directly update calendar.json with the generated meals!
+        for day in result.get('days', []):
+            d_str = day.get('date')
+            if not d_str:
+                continue
+            for mt in ['breakfast', 'lunch', 'dinner']:
+                meal = day.get(mt)
+                if meal and isinstance(meal, dict) and meal.get('name'):
+                    self.calendar_manager.set_meal(d_str, mt, {
+                        "name": meal.get('name'),
+                        "recipe_id": meal.get('recipe_id'),
+                        "source": meal.get('source', 'chef'),
+                        "ingredients": meal.get('ingredients', []),
+                        "instructions": meal.get('instructions', []),
+                        "image_url": meal.get('image_url'),
+                        "completed": False,
+                        "rating": meal.get('rating', 0)
+                    })
+
+        # Auto-pantry check recommendations if any
+        try:
+            recommendations = self.recommend_grocery_checks(result)
+            result['pantry_recommendations'] = recommendations
+        except Exception as e:
+            print(f"Pantry check recommendation error: {e}")
+
+        return result
+
+    def stream_plan_slots(self, target_slots=None, model_id=None, start_date=None, duration=None, chef_user_ratio=50, ideas_override=None):
+        """
+        Yields real-time harness progress events as a generator.
+        Final event yields status: 'completed' with redirect: '/plan/view'.
+        """
+        import time
+        if not model_id:
+            model_id = self.model_manager.get_core_model_id()
+            
+        model_name = model_id
+        for m in self.model_manager.get_available_models():
+            if m['id'] == model_id:
+                model_name = m.get('name', model_id)
+                break
+
+        # Step 1: Inventory
+        yield {
+            "step": 1,
+            "progress": 15,
+            "stage": "inventory",
+            "message": "Scanning pantry inventory..."
+        }
+        time.sleep(0.15)
+        inv_items = self.inventory_manager.load_inventory()
+        inv_count = len(inv_items) if isinstance(inv_items, list) else 0
+        yield {
+            "step": 1,
+            "progress": 25,
+            "stage": "inventory",
+            "message": f"Scanned pantry: found {inv_count} stocked items to prioritize."
+        }
+        time.sleep(0.15)
+
+        # Step 2: Cookbook & History
+        yield {
+            "step": 2,
+            "progress": 40,
+            "stage": "cookbook",
+            "message": "Reviewing cookbook favorites & recent meal history..."
+        }
+        recipes = self.cookbook_manager.load_recipes()
+        fav_count = len([r for r in recipes if r.get('rating', 0) >= 4])
+        yield {
+            "step": 2,
+            "progress": 50,
+            "stage": "cookbook",
+            "message": f"Loaded {len(recipes)} recipes ({fav_count} top-rated favorites prioritized, avoiding recent repeats)."
+        }
+        time.sleep(0.15)
+
+        # Step 3: Dietary Rules & Ratios
+        chef_ratio = int(chef_user_ratio) if chef_user_ratio is not None else 50
+        cookbook_ratio = 100 - chef_ratio
+        yield {
+            "step": 3,
+            "progress": 65,
+            "stage": "preferences",
+            "message": f"Applying cravings & dietary profile ({chef_ratio}% Chef / {cookbook_ratio}% Cookbook Library)..."
+        }
+        time.sleep(0.15)
+
+        # Step 4: Prompting Model
+        yield {
+            "step": 4,
+            "progress": 75,
+            "stage": "generation",
+            "message": f"Calling {model_name} to craft personalized recipes and ingredients..."
+        }
+
+        # Real LLM Call!
+        system_instruction, user_prompt = self.construct_prompt(
+            start_date=start_date,
+            duration=duration,
+            target_slots=target_slots,
+            chef_user_ratio=chef_user_ratio,
+            ideas_override=ideas_override
+        )
+        
+        try:
+            result = self.model_manager.generate(
+                model_id=model_id,
+                system_instruction=system_instruction,
+                user_prompt=user_prompt
+            )
+        except Exception as e:
+            yield {
+                "step": 4,
+                "progress": 75,
+                "status": "error",
+                "message": f"Generation failed: {str(e)}"
+            }
+            return
+
+        if isinstance(result, dict) and "error" in result:
+            yield {
+                "step": 4,
+                "progress": 75,
+                "status": "error",
+                "message": result["error"]
+            }
+            return
+
+        # Step 5: Committing to Calendar & Schedule
+        yield {
+            "step": 5,
+            "progress": 90,
+            "stage": "saving",
+            "message": "Validating meals and saving to your calendar..."
+        }
+        
+        meal_count = 0
+        for day in result.get('days', []):
+            d_str = day.get('date')
+            if not d_str:
+                continue
+            for mt in ['breakfast', 'lunch', 'dinner']:
+                meal = day.get(mt)
+                if meal and isinstance(meal, dict) and meal.get('name'):
+                    meal_count += 1
+                    self.calendar_manager.set_meal(d_str, mt, {
+                        "name": meal.get('name'),
+                        "recipe_id": meal.get('recipe_id'),
+                        "source": meal.get('source', 'chef'),
+                        "ingredients": meal.get('ingredients', []),
+                        "instructions": meal.get('instructions', []),
+                        "image_url": meal.get('image_url'),
+                        "completed": False,
+                        "rating": meal.get('rating', 0)
+                    })
+
+        try:
+            recommendations = self.recommend_grocery_checks(result)
+            result['pantry_recommendations'] = recommendations
+        except Exception as e:
+            print(f"Pantry check recommendation error: {e}")
+
+        # Complete!
+        yield {
+            "step": 6,
+            "progress": 100,
+            "status": "completed",
+            "redirect": "/plan/view",
+            "message": f"Success! {meal_count} meals saved to your calendar."
+        }
+
+    def load_custom_groceries(self):
+        p = os.path.join(self.user_state_dir, 'custom_groceries.json')
+        if os.path.exists(p):
+            try:
+                with open(p, 'r') as f:
+                    return json.load(f)
+            except:
+                return []
+        return []
+
+    def save_custom_groceries(self, items):
+        p = os.path.join(self.user_state_dir, 'custom_groceries.json')
+        with open(p, 'w') as f:
+            json.dump(items, f, indent=4)
+
+    def add_custom_groceries(self, new_items):
+        existing = self.load_custom_groceries()
+        for it in new_items:
+            if isinstance(it, str) and it.strip():
+                existing.append({"id": f"custom-{uuid.uuid4().hex[:8]}", "name": it.strip(), "checked": False})
+            elif isinstance(it, dict) and it.get('name'):
+                existing.append(it)
+        self.save_custom_groceries(existing)
+        return existing
+
+    def execute_assistant_command(self, user_message: str):
+        """
+        Interprets natural language commands from the floating assistant chat
+        and executes corresponding actions on calendar, recipes, or grocery list.
+        """
+        today = datetime.now().date()
+        today_str = today.strftime("%Y-%m-%d")
+        upcoming = self.calendar_manager.get_upcoming_meals(today, days_ahead=7)
+        schedule_summary = []
+        for m in upcoming:
+            schedule_summary.append(f"{m['date']} ({m['meal_title']}): {m['name']} {'[Cooked]' if m['completed'] else ''}")
+
+        recipes = self.cookbook_manager.load_recipes()
+        recipe_names = [r['name'] for r in recipes[:30]]
+
+        system_instruction = f"""
+        You are Arby, the intelligent kitchen companion and personal culinary assistant.
+        Today's date is {today_str} ({today.strftime('%A')}).
+
+        CURRENT UPCOMING SCHEDULE (Next 7 days):
+        {chr(10).join(schedule_summary) if schedule_summary else "No upcoming meals currently scheduled."}
+
+        USER'S COOKBOOK RECIPES (Sample):
+        {', '.join(recipe_names) if recipe_names else "Cookbook is empty."}
+
+        CAPABILITIES & ACTIONS:
+        You can answer culinary questions directly OR trigger actions by setting `action_type` and `action_payload`:
+        1. `plan_slots`: When user asks to plan a meal or meals (e.g. "plan dinner tomorrow", "what should I make for lunch on Friday?").
+           - `action_payload`: {{ "slots": [{{"date": "YYYY-MM-DD", "meal_type": "breakfast|lunch|dinner"}}], "cravings": "user notes or desires" }}
+        2. `swap_meals`: When user asks to swap two meals (e.g. "swap tonight's dinner with tomorrow's").
+           - `action_payload`: {{ "date1": "YYYY-MM-DD", "meal1": "dinner", "date2": "YYYY-MM-DD", "meal2": "dinner" }}
+        3. `set_meal`: When user explicitly assigns a specific dish to a slot (e.g. "put Grilled Salmon for tomorrow night's dinner").
+           - `action_payload`: {{ "date": "YYYY-MM-DD", "meal_type": "dinner", "name": "Grilled Salmon", "source": "user" }}
+        4. `clear_meal`: When user asks to remove/cancel a meal (e.g. "clear Friday lunch").
+           - `action_payload`: {{ "date": "YYYY-MM-DD", "meal_type": "lunch" }}
+        5. `mark_cooked`: When user cooked a meal (e.g. "I just finished cooking tonight's dinner").
+           - `action_payload`: {{ "date": "YYYY-MM-DD", "meal_type": "dinner" }}
+        6. `add_grocery`: When user wants to add items to grocery list (e.g. "add almond milk and eggs to my list").
+           - `action_payload`: {{ "items": ["almond milk", "eggs"] }}
+        7. `none`: When answering a general question, cooking advice, substitute idea, or greeting.
+           - `action_payload`: {{}}
+
+        Respond with a warm, helpful, professional culinary message in `reply`.
+        """
+
+        model_id = self.model_manager.get_sous_chef_model_id() or self.model_manager.get_core_model_id()
+        try:
+            action_res = self.model_manager.generate(
+                model_id=model_id,
+                system_instruction=system_instruction,
+                user_prompt=user_message,
+                schema=AssistantActionResponse
+            )
+            
+            action_type = action_res.get('action_type', 'none')
+            payload = action_res.get('action_payload', {})
+            reply = action_res.get('reply', "Done!")
+            
+            # Execute action
+            if action_type == "plan_slots":
+                slots = payload.get('slots', [])
+                cravings = payload.get('cravings')
+                if slots:
+                    self.plan_slots(target_slots=slots, ideas_override=cravings)
+            elif action_type == "swap_meals":
+                d1, m1 = payload.get('date1'), payload.get('meal1')
+                d2, m2 = payload.get('date2'), payload.get('meal2')
+                if d1 and m1 and d2 and m2:
+                    self.calendar_manager.swap_meals(d1, m1, d2, m2)
+            elif action_type == "set_meal":
+                d, m, name = payload.get('date'), payload.get('meal_type'), payload.get('name')
+                if d and m and name:
+                    matched = self.cookbook_manager.find_recipe_by_name(name)
+                    if matched:
+                        meal_dict = {
+                            "name": matched['name'],
+                            "recipe_id": matched['id'],
+                            "source": "library",
+                            "ingredients": matched.get('ingredients', []),
+                            "instructions": matched.get('instructions', []),
+                            "image_url": matched.get('image_url')
+                        }
+                    else:
+                        meal_dict = {"name": name, "source": "user", "ingredients": [], "instructions": []}
+                    self.calendar_manager.set_meal(d, m, meal_dict)
+            elif action_type == "clear_meal":
+                d, m = payload.get('date'), payload.get('meal_type')
+                if d and m:
+                    self.calendar_manager.remove_meal(d, m)
+            elif action_type == "mark_cooked":
+                d, m = payload.get('date'), payload.get('meal_type')
+                if d and m:
+                    self.calendar_manager.mark_meal_completed(d, m, completed=True)
+            elif action_type == "add_grocery":
+                items = payload.get('items', [])
+                if items:
+                    self.add_custom_groceries(items)
+
+            return {
+                "status": "ok",
+                "reply": reply,
+                "action_type": action_type,
+                "action_payload": payload
+            }
+        except Exception as e:
+            print(f"Assistant command execution error: {e}")
+            return {
+                "status": "error",
+                "reply": f"Sorry, I had trouble processing that: {str(e)}",
+                "action_type": "none"
+            }
 
     def modify_plan(self, current_plan, user_feedback, model_id=None):
         """Modifies an existing plan based heavily on user feedback."""

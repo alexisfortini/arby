@@ -24,6 +24,7 @@ class Recipe(BaseModel):
     source: str = "manual"  # 'manual', 'pdf', 'arby'
     filename: Optional[str] = None  # Filename if source is pdf
     rating: int = 0 # 0-5 stars
+    image_url: Optional[str] = None # Attached image path or URL
 
 class CookbookManager:
     def __init__(self, state_dir, config):
